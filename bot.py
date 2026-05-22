@@ -1386,6 +1386,14 @@ async def on_ready() -> None:
         allowed_guild_id=int(os.getenv("GUILD_ID", "0")) or None,
     ))
 
+    # Register Bamboozled Activity slash command
+    try:
+        from bamboozled.activity_launcher import register_activity_command
+        register_activity_command(tree)
+        logger.info("Bamboozled Activity command registered.")
+    except Exception as _act_err:
+        logger.warning("Could not register Bamboozled Activity command: %s", _act_err)
+
     await tree.sync()
     logger.info("Slash commands synced. Navi is live. Hey! Listen!")
 

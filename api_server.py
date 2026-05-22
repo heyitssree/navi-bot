@@ -182,6 +182,92 @@ def create_app(db_conn: sqlite3.Connection, allowed_guild_id: int | None) -> Any
         logs = get_recent_partner_logs(db_conn, limit=min(limit, 50))
         return {"logs": logs}
 
+    # -----------------------------------------------------------------------
+    # Internal endpoint — called by the Bamboozled Activity backend to award
+    # Boli after a game ends.  Authenticated with X-Internal-Secret header,
+    # NOT the public bearer token, so the Activity can't issue arbitrary awards.
+    # -----------------------------------------------------------------------
+
+    INTERNAL_SECRET = os.getenv("BOT_INTERNAL_SECRET", "")
+
+    class BoliAwardPayload(BaseModel):
+        game_id: str
+        source_game: str = "bamboozled_activity"
+        awards: dict[str, int]  # discord_user_id (str) → boli amount
+
+    @app.post("/internal/boli/award")
+    async def internal_boli_award(payload: BoliAwardPayload, request: Request) -> dict:
+        """Accept Boli award batch from a trusted internal service (Activity backend)."""
+        secret = request.headers.get("X-Internal-Secret", "")
+        if not INTERNAL_SECRET or secret != INTERNAL_SECRET:
+            raise HTTPException(status_code=401, detail="Invalid internal secret.")
+
+        if partner_score_exists(db_conn, payload.game_id):
+            raise HTTPException(
+                status_code=409,
+                detail=f"game_id '{payload.game_id}' already processed.",
+            )
+
+        if not get_config_int(db_conn, "feature_partner_api", 1):
+            raise HTTPException(status_code=503, detail="Partner API awards are currently disabled.")
+
+        awarded: dict[str, int] = {}
+        for discord_id_str, amount in payload.awards.items():
+            try:
+                user_id = int(discord_id_str)
+            except ValueError:
+                logger.warning("internal_boli_award: invalid discord_id %r — skipping", discord_id_str)
+                continue
+
+            if amount <= 0:
+                continue
+
+            # Fetch username from existing user_stats row (best-effort; may be empty string)
+            username = ""
+            try:
+                row = db_conn.execute(
+                    "SELECT username FROM user_stats WHERE user_id = ?", (user_id,)
+                ).fetchone()
+                if row:
+                    username = row[0] or ""
+            except Exception:
+                pass
+
+            upsert_user(db_conn, user_id, username)
+            add_external_boli(
+                db_conn,
+                user_id=user_id,
+                username=username,
+                points=amount,
+                game_id=f"{payload.game_id}:{discord_id_str}",
+                source_game=payload.source_game,
+            )
+            xp = max(_MIN_XP, int(amount * _XP_RATIO))
+            add_experience(db_conn, user_id, xp)
+            awarded[discord_id_str] = amount
+
+        # Write a single audit log row for the whole game
+        log_partner_score(
+            db_conn,
+            game_id=payload.game_id,
+            user_id=0,
+            guild_id=0,
+            username="[activity-batch]",
+            raw_points=sum(payload.awards.values()),
+            boli_awarded=sum(awarded.values()),
+            xp_awarded=0,
+            game_type=payload.source_game,
+        )
+
+        logger.info(
+            "Internal boli award: game_id=%s source=%s awards=%s",
+            payload.game_id,
+            payload.source_game,
+            awarded,
+        )
+
+        return {"status": "ok", "awarded": awarded}
+
     @app.get("/health")
     async def health() -> dict:
         return {"status": "ok", "timestamp": datetime.now(timezone.utc).isoformat()}
