@@ -1,9 +1,13 @@
 # Secrets — never commit
 .env
+**/.env
 
 # DuckDB database (environment-specific, auto-created on startup)
 data/*.db
 data/*.wal
+
+# Activity backend SQLite DB
+activity/backend/data/
 
 # Log files
 logs/*.log
@@ -16,5 +20,9 @@ __pycache__/
 *.pyc
 *.pyo
 .venv/
+
+# Node / frontend
+activity/frontend/node_modules/
+activity/frontend/dist/
 
 # NOTE: .env.example IS tracked (it contains no real keys)
