@@ -1,4 +1,4 @@
-# bot.py - Navi (disco_bot) — Main Discord bot entrypoint
+# bot.py - Navi — Main Discord bot entrypoint
 
 from __future__ import annotations
 
@@ -1304,11 +1304,11 @@ def _do_backup() -> str:
     import pathlib
     pathlib.Path(_BACKUP_DIR).mkdir(parents=True, exist_ok=True)
     ts = datetime.now().strftime("%Y%m%d_%H%M")
-    dest = os.path.join(_BACKUP_DIR, f"astro_bot_{ts}.db")
+    dest = os.path.join(_BACKUP_DIR, f"navi_backup_{ts}.db")
     shutil.copy2(str(DB_PATH), dest)
     # Prune oldest backups beyond the rolling window
     backups = sorted(
-        [f for f in os.listdir(_BACKUP_DIR) if f.startswith("astro_bot_") and f.endswith(".db")]
+        [f for f in os.listdir(_BACKUP_DIR) if f.startswith("navi_backup_") and f.endswith(".db")]
     )
     for old in backups[:-_BACKUP_KEEP]:
         try:
@@ -1385,14 +1385,6 @@ async def on_ready() -> None:
         db_conn,
         allowed_guild_id=int(os.getenv("GUILD_ID", "0")) or None,
     ))
-
-    # Register Bamboozled Activity slash command
-    try:
-        from bamboozled.activity_launcher import register_activity_command
-        register_activity_command(tree)
-        logger.info("Bamboozled Activity command registered.")
-    except Exception as _act_err:
-        logger.warning("Could not register Bamboozled Activity command: %s", _act_err)
 
     await tree.sync()
     logger.info("Slash commands synced. Navi is live. Hey! Listen!")
@@ -3030,7 +3022,7 @@ class AdminGroup(app_commands.Group):
 
     @app_commands.command(name="set_cooldown", description="Set anti-spam cooldown in seconds")
     async def set_cooldown(self, interaction: discord.Interaction, seconds: int) -> None:
-        set_config_int(db_conn, "astro_cooldown_seconds", seconds)
+        set_config_int(db_conn, "navi_cooldown_seconds", seconds)
         await interaction.response.send_message(f"Spam cooldown set to **{seconds} seconds**.", ephemeral=True)
 
     @app_commands.command(name="toggle_killswitch", description="Toggle Free-Only API mode (circuit breaker bypass)")

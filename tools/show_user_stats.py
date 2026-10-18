@@ -2,7 +2,7 @@
 show_user_stats.py — Read-only view of user_stats. Safe to run at any time.
 
 Usage (on VM):
-    cd ~/disco_bot && source .venv/bin/activate
+    cd ~/navi-bot && source .venv/bin/activate
     python tools/show_user_stats.py
 """
 import sqlite3, os, sys
@@ -14,7 +14,7 @@ VALID_RASHIS = [
     "Makaram (Capricorn)", "Kumbham (Aquarius)", "Meenam (Pisces)",
 ]
 
-DB_PATH = os.path.abspath(os.getenv("DB_PATH", "/opt/astrobot/data/astro_bot.db"))
+DB_PATH = os.path.abspath(os.getenv("DB_PATH", "/opt/navi-bot/data/navi.db"))
 conn = sqlite3.connect(DB_PATH)
 conn.row_factory = sqlite3.Row
 

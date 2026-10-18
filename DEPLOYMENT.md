@@ -1,6 +1,6 @@
-# AstRobot V2 — Deployment Guide (GCP Free Tier VM)
+# Navi V2 — Deployment Guide (GCP Free Tier VM)
 
-This guide covers deploying AstRobot V2 to a GCP **e2-micro** Linux VM.
+This guide covers deploying Navi V2 to a GCP **e2-micro** Linux VM.
 
 ---
 
@@ -22,7 +22,7 @@ On your **local machine**, commit and push everything:
 
 ```bash
 git add .
-git commit -m "feat: AstRobot V2 - DuckDB, dual-key, rate limiter, gamification"
+git commit -m "feat: Navi V2 - DuckDB, dual-key, rate limiter, gamification"
 git push origin main
 ```
 
@@ -38,7 +38,7 @@ SSH into your GCP VM (click **SSH** in the GCP Console), then:
 
 ```bash
 # Navigate to your bot folder
-cd ~/disco_bot
+cd ~/navi-bot
 
 # Pull the latest changes
 git pull origin main
@@ -64,15 +64,13 @@ Update it to look like this (replace values with your real keys):
 
 ```env
 DISCORD_TOKEN=your-discord-token-here
-CLIENT_ID=your-client-id-here
 GUILD_ID=your-guild-id-here
 
 # Gemini API keys — free key tried first, paid is fallback
 GEMINI_API_KEY_FREE=your-free-gemini-key-here
 GEMINI_API_KEY_PAID=your-paid-gemini-key-here
 
-# Bot behaviour
-HORRIBLESCOPE_CHANNEL=off-topic
+# Bot behaviour (see .env.example for the full list)
 FREE_TIER_MODE=true
 ```
 
@@ -90,13 +88,13 @@ Use `tmux` so the bot keeps running after you close the SSH window:
 
 ```bash
 # If you have an existing tmux session, kill it first
-tmux kill-session -t astrobot 2>/dev/null || true
+tmux kill-session -t navi 2>/dev/null || true
 
 # Start a fresh session
-tmux new -s astrobot
+tmux new -s navi
 
 # Inside tmux — make sure venv is active and you're in the right folder
-cd ~/disco_bot
+cd ~/navi-bot
 source .venv/bin/activate
 
 # Start the bot
@@ -106,11 +104,11 @@ python bot.py
 You should see startup logs like:
 
 ```
-2026-04-24 [INFO] astrobot: Starting AstRobot V2... Free key: ✓ | Paid key: ✓
-2026-04-24 [INFO] astrobot.schema: DuckDB initialised at data/astro_bot.db
-2026-04-24 [INFO] astrobot.gemini: GeminiService initialised. Available keys: ['free', 'paid']
-2026-04-24 [INFO] astrobot: Logged in as AstRobot#XXXX
-2026-04-24 [INFO] astrobot: Slash commands synced. AstRobot V2 is live.
+2026-04-24 [INFO] navi: Starting Navi V2... Free key: ✓ | Paid key: ✓
+2026-04-24 [INFO] navi.schema: DuckDB initialised at data/navi.db
+2026-04-24 [INFO] navi.gemini: GeminiService initialised. Available keys: ['free', 'paid']
+2026-04-24 [INFO] navi: Logged in as Navi#XXXX
+2026-04-24 [INFO] navi: Slash commands synced. Navi V2 is live.
 ```
 
 **Detach from tmux** (bot keeps running): Press `Ctrl+B`, release, then press `D`.
@@ -123,7 +121,7 @@ Back in Discord, test these:
 
 | Command / Action | Expected |
 |---|---|
-| `/astro` | Prediction + Rashi assigned on first use |
+| `/navi` | Prediction + Rashi assigned on first use |
 | `/mypoints` | Shows your Boli Points and Rashi |
 | `/rank` | Leaderboard embed |
 | `/health` (owner only) | Status embed showing active key, RPM, circuit state |
@@ -137,13 +135,13 @@ Back in Discord, test these:
 
 ```bash
 # Reattach to the running bot
-tmux attach -t astrobot
+tmux attach -t navi
 
 # Or tail the log file directly (without attaching)
-tail -f ~/disco_bot/logs/bot.log
+tail -f ~/navi-bot/logs/bot.log
 
 # To stop the bot
-tmux attach -t astrobot
+tmux attach -t navi
 # Then press Ctrl+C
 ```
 
@@ -154,7 +152,7 @@ tmux attach -t astrobot
 To keep cached responses generic (good for reuse), run the cleaner manually:
 
 ```bash
-cd ~/disco_bot
+cd ~/navi-bot
 source .venv/bin/activate
 
 # Stop the bot first (Ctrl+C in its tmux window), then:
@@ -173,26 +171,26 @@ crontab -e
 Add this line:
 
 ```
-0 21 * * 6 cd ~/disco_bot && source .venv/bin/activate && python tools/cache_cleaner.py >> logs/cleaner.log 2>&1
+0 21 * * 6 cd ~/navi-bot && source .venv/bin/activate && python tools/cache_cleaner.py >> logs/cleaner.log 2>&1
 ```
 
 ---
 
 ## Backing Up Boli Points Data
 
-The DuckDB file at `data/astro_bot.db` is not committed to git. To back up user stats:
+The DuckDB file at `data/navi.db` is not committed to git. To back up user stats:
 
 ```bash
-cd ~/disco_bot
+cd ~/navi-bot
 source .venv/bin/activate
-python -c "import schema, duckdb; conn = duckdb.connect('data/astro_bot.db'); schema.export_stats_csv(conn, 'data/backup_stats.csv'); print('Done')"
+python -c "import schema, duckdb; conn = duckdb.connect('data/navi.db'); schema.export_stats_csv(conn, 'data/backup_stats.csv'); print('Done')"
 ```
 
 Then copy it to your local machine:
 
 ```bash
 # Run this on your LOCAL machine (Windows PowerShell)
-gcloud compute scp astrobot-server:~/disco_bot/data/backup_stats.csv ./backup_stats.csv
+gcloud compute scp navi-server:~/navi-bot/data/backup_stats.csv ./backup_stats.csv
 ```
 
 ---
@@ -223,8 +221,8 @@ If you're setting up a brand new VM:
 sudo apt-get update
 sudo apt-get install python3 python3-pip python3-venv git tmux -y
 
-git clone https://github.com/heyitssree/disco_bot.git
-cd disco_bot
+git clone https://github.com/YOUR_GITHUB_USER/navi-bot.git
+cd navi-bot
 
 python3 -m venv .venv
 source .venv/bin/activate

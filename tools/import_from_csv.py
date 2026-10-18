@@ -2,7 +2,7 @@
 import_from_csv.py — One-time migration: import user_stats from a CSV backup into a fresh SQLite DB.
 
 Usage:
-    cd ~/disco_bot
+    cd ~/navi-bot
     source .venv/bin/activate
     python tools/import_from_csv.py data/backup_before_sqlite.csv
 

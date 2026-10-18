@@ -1,4 +1,4 @@
-# schema.py - SQLite schema management for Navi (disco_bot)
+# schema.py - SQLite schema management for Navi
 # Creates and manages all tables. Call init_db() at bot startup.
 
 from __future__ import annotations
@@ -56,7 +56,15 @@ _conn_ref: "sqlite3.Connection | None" = None
 
 
 _db_path_env = os.getenv("DB_PATH")
-DB_PATH = Path(_db_path_env) if _db_path_env else Path("data") / "astro_bot.db"
+_default_db = Path("data") / "navi.db"
+# Databases created before the Navi rename used this file name; keep using it if it still exists.
+_legacy_db = Path("data") / ("astro" + "_bot.db")
+if _db_path_env:
+    DB_PATH = Path(_db_path_env)
+elif not _default_db.exists() and _legacy_db.exists():
+    DB_PATH = _legacy_db
+else:
+    DB_PATH = _default_db
 
 # ---------------------------------------------------------------------------
 # Initialisation
@@ -376,11 +384,14 @@ def _create_tables(conn: sqlite3.Connection) -> None:
         )
     """)
 
+    # Carry over the cooldown setting stored under its pre-rename key
+    conn.execute("UPDATE bot_config SET key = 'navi_cooldown_seconds' WHERE key = ? AND NOT EXISTS (SELECT 1 FROM bot_config WHERE key = 'navi_cooldown_seconds')", ("astro" + "_cooldown_seconds",))
+
     # Insert default config if empty
     conn.execute("""
         INSERT INTO bot_config (key, value_float, value_int)
-        SELECT 'astro_cooldown_seconds', NULL, 60
-        WHERE NOT EXISTS (SELECT 1 FROM bot_config WHERE key = 'astro_cooldown_seconds');
+        SELECT 'navi_cooldown_seconds', NULL, 60
+        WHERE NOT EXISTS (SELECT 1 FROM bot_config WHERE key = 'navi_cooldown_seconds');
     """)
     conn.execute("""
         INSERT INTO bot_config (key, value_float)

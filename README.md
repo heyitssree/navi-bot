@@ -1,4 +1,4 @@
-# AstRobot - Trivandrum's Own Astrologer Bot
+# Navi - Trivandrum's Own Astrologer Bot
 
 A dramatic, self-important astrologer bot from Trivandrum, Kerala that speaks in Trivandrum Manglish slang.
 
@@ -23,7 +23,7 @@ A dramatic, self-important astrologer bot from Trivandrum, Kerala that speaks in
 ## Features
 
 ### 1. On-demand Predictions
-Trigger: `.astro <name>`
+Trigger: `navi <name>`
 
 Get a fake, dramatic astrology reading for any person — written in Trivandrum Manglish slang, funny, and slightly ominous.
 
@@ -36,7 +36,7 @@ The bot listens to ALL messages in the server. If a message contains any word fr
 
 ## Bot Personality
 
-> You are AstRobot, an ancient and dramatically self-important astrologer from Trivandrum, Kerala. You speak in Trivandrum Manglish — a mix of Malayalam words and English, written in English script.
+> You are Navi, an ancient and dramatically self-important astrologer from Trivandrum, Kerala. You speak in Trivandrum Manglish — a mix of Malayalam words and English, written in English script.
 
 **Core Traits:**
 - Takes predictions extremely seriously even when they are completely absurd
@@ -89,7 +89,7 @@ Palayam, Thampanoor, KD Puram, Vellayambalam, Kowdiar, Chalai Market, Ponmudi, S
 
 ```bash
 # Navigate to project directory
-cd disco_bot
+cd navi-bot
 
 # Install dependencies
 pip install -r requirements.txt
@@ -102,7 +102,7 @@ pip install -r requirements.txt
 copy .env.example .env
 ```
 
-Edit `.env` with your API keys (see [Environment Variables](#environment-variables))
+Edit `.env` with your keys. See [SETUP.md](SETUP.md) for where to find each value.
 
 ### 3. Run Locally
 
@@ -144,21 +144,21 @@ BOT_PREFIX = "."            # Command prefix
 
 ### Prefix Command
 ```
-.astro <name>
+navi <name>
 ```
 
 **Examples:**
 ```
-.astro Arjun
-.astro
+navi Arjun
+navi
 ```
 
 - If no name is provided, uses the message author's display name
-- Works as both prefix command (`.astro`) and slash command (`/astro`)
+- Works as both prefix command (`navi`) and slash command (`/navi`)
 
 ### Slash Command
 ```
-/astro [name]
+/navi [name]
 ```
 
 Same behavior as prefix command.
@@ -170,7 +170,7 @@ Same behavior as prefix command.
 ### Trigger Conditions
 - Message contains any word from the curse word list (case-insensitive)
 - Message is not from a bot
-- Message is not from AstRobot itself
+- Message is not from Navi itself
 
 ### Response Types (50/50 random)
 
@@ -220,7 +220,7 @@ The bot can run on any platform that supports Python 3.11+:
 ## File Structure
 
 ```
-disco_bot/
+navi-bot/
 ├── bot.py           # Main bot logic (commands + passive replies)
 ├── prompts.py       # Gemini system prompts & message templates
 ├── curses.py        # Curse word triggers & passive reply templates
@@ -236,22 +236,22 @@ disco_bot/
 
 ## Example Exchanges
 
-### .astro Command
+### navi Command
 ```
-User: .astro Arjun
-AstRobot: "Eda Arjun, Chandra is sitting in the 7th house like a KSRTC bus at Thampanoor — not moving. This week avoid Chalai Market or you will lose your wallet AND your sense of direction. Padmanabha swami has noted your recent behaviour. Shokam aanu, mone."
+User: navi Arjun
+Navi: "Eda Arjun, Chandra is sitting in the 7th house like a KSRTC bus at Thampanoor — not moving. This week avoid Chalai Market or you will lose your wallet AND your sense of direction. Padmanabha swami has noted your recent behaviour. Shokam aanu, mone."
 ```
 
 ### Passive Curse Reply (Doomed Prediction)
 ```
 User: damn this is so frustrating
-AstRobot: "@User, AstRobot is watching. Your stars say you will get stuck in KD Puram traffic for 45 minutes on a Tuesday with no charge in your phone. Chumma vayadi ayikko."
+Navi: "@User, Navi is watching. Your stars say you will get stuck in KD Puram traffic for 45 minutes on a Tuesday with no charge in your phone. Chumma vayadi ayikko."
 ```
 
 ### Passive Curse Reply (Curse Back)
 ```
 User: this is such bullshit
-AstRobot: "Aiyo @User, nee oru Pottan aanu. Ponmudi mist-pole ninte future also unclear. Kili poyi!"
+Navi: "Aiyo @User, nee oru Pottan aanu. Ponmudi mist-pole ninte future also unclear. Kili poyi!"
 ```
 
 ---
@@ -270,7 +270,7 @@ AstRobot: "Aiyo @User, nee oru Pottan aanu. Ponmudi mist-pole ninte future also 
 
 ### Gemini API errors
 - Check your API key is valid and has quota remaining
-- Fallback message will be used: "AstRobot-nte lamp went off. KSRTC current problem. Try again mone."
+- Fallback message will be used: "Navi-nte lamp went off. KSRTC current problem. Try again mone."
 
 ### Bot triggering on its own messages
 - Handled: Bot ignores messages from itself and other bots

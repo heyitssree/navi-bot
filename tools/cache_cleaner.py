@@ -1,8 +1,8 @@
-# tools/cache_cleaner.py - Periodic cache generalizer for AstRobot
+# tools/cache_cleaner.py - Periodic cache generalizer for Navi
 #
 # Run manually: python tools/cache_cleaner.py
 # Or via cron on GCP VM (weekly, Sunday 2am IST):
-#   30 20 * * 6 cd ~/disco_bot && source .venv/bin/activate && python tools/cache_cleaner.py
+#   30 20 * * 6 cd ~/navi-bot && source .venv/bin/activate && python tools/cache_cleaner.py
 #
 # NOTE: Safe to run while the bot is running (SQLite WAL mode handles concurrent access).
 
@@ -24,7 +24,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger("cache_cleaner")
 
-DB_PATH = Path("data") / "astro_bot.db"
+DB_PATH = Path("data") / "navi.db"
 
 
 def load_known_names(conn: sqlite3.Connection) -> list[str]:

@@ -5,7 +5,7 @@ Run this when the bot fails with:
     sqlite3.DatabaseError: file is not a database
 
 It will:
-  1. Check whether astro_bot.db is a valid SQLite file
+  1. Check whether navi.db is a valid SQLite file
   2. If not, back it up and create a fresh SQLite DB using schema.py
   3. The bot will start fresh (user data is lost unless a backup exists)
 
@@ -55,7 +55,7 @@ def check_db(path: str) -> str:
 
 def recover(force: bool = False) -> None:
     db_path_env = os.getenv("DB_PATH")
-    db_path = db_path_env if db_path_env else os.path.join(parent_dir, "data", "astro_bot.db")
+    db_path = db_path_env if db_path_env else os.path.join(parent_dir, "data", "navi.db")
 
     print(f"=== Navi DB Recovery Tool ===")
     print(f"DB path: {db_path}")

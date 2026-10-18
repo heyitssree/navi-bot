@@ -18,7 +18,7 @@ except ImportError:
 
 def migrate():
     data_dir = os.path.join(parent_dir, "data")
-    duck_path = os.getenv("DB_PATH", os.path.join(data_dir, "astro_bot.db"))
+    duck_path = os.getenv("DB_PATH", os.path.join(data_dir, "navi.db"))
     
     # We rename the old duckdb file to duck.db
     backup_path = duck_path + ".duck_backup"

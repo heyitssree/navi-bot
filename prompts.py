@@ -1,4 +1,4 @@
-# prompts.py - All Gemini prompt templates for Navi (disco_bot)
+# prompts.py - All Gemini prompt templates for Navi
 #
 # EDITING GUIDE:
 #   - Bot persona / tone:        _LINK_SYSTEM_PROMPT, _DEFAULT_SYSTEM_PROMPT

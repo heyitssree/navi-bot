@@ -2,7 +2,7 @@
 fix_duplicate_users.py — Run this on the GCP VM to resolve duplicate user_stats entries.
 
 Usage:
-    cd ~/disco_bot
+    cd ~/navi-bot
     source .venv/bin/activate
     python tools/fix_duplicate_users.py
 
@@ -29,7 +29,7 @@ VALID_RASHIS = [
 # ---------------------------------------------------------------------------
 # DB path — reads from env var just like the bot does
 # ---------------------------------------------------------------------------
-DB_PATH = os.path.abspath(os.getenv("DB_PATH", "/opt/astrobot/data/astro_bot.db"))
+DB_PATH = os.path.abspath(os.getenv("DB_PATH", "/opt/navi-bot/data/navi.db"))
 
 conn = sqlite3.connect(DB_PATH)
 conn.row_factory = sqlite3.Row

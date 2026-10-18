@@ -1,4 +1,4 @@
-# AstRobot V2 — Usage Guide
+# Navi V2 — Usage Guide
 
 *"The most unnecessarily dramatic astrologer in Thirontharam."*
 
@@ -6,17 +6,17 @@
 
 ## Slash Commands
 
-### 🔮 `/astro` — Get Your Prediction
+### 🔮 `/navi` — Get Your Prediction
 The main event. Get a Trivandrum Manglish astrology reading.
 
 ```
-/astro
-/astro user:@someone
+/navi
+/navi user:@someone
 ```
 
 **What happens:**
-- **First time**: AstRobot assigns you a Rashi (Malayalam star sign) that sticks forever
-- **Every time after**: AstRobot references one of your past doomed predictions and blames it on something specific ("you got stuck at KD Puram because you skipped Boli and Paal Payasam")
+- **First time**: Navi assigns you a Rashi (Malayalam star sign) that sticks forever
+- **Every time after**: Navi references one of your past doomed predictions and blames it on something specific ("you got stuck at KD Puram because you skipped Boli and Paal Payasam")
 - The prediction changes based on **time of day** — evening predictions obsess over chaya and Pazham Pori; late-night ones hint at Museum Campus ghosts
 - **+2 Boli Points** awarded to the person who used the command
 
@@ -28,14 +28,14 @@ The main event. Get a Trivandrum Manglish astrology reading.
 ---
 
 ### 🍮 `/mypoints` — Check Your Boli Points
-See your personal AstRobot profile. Only visible to you.
+See your personal Navi profile. Only visible to you.
 
 ```
 /mypoints
 ```
 
 Shows:
-- 🌟 Your Rashi (assigned on first `/astro` use)
+- 🌟 Your Rashi (assigned on first `/navi` use)
 - 🍮 Total Boli Points earned
 - 🔮 Number of predictions you've received
 
@@ -53,7 +53,7 @@ Shows top 10 users with their Rashi, Boli Points, and prediction count.
 ---
 
 ### 🔧 `/health` — System Status *(Owner Only)*
-Check AstRobot's internals. Only works if you're the bot owner.
+Check Navi's internals. Only works if you're the bot owner.
 
 ```
 /health
@@ -74,7 +74,7 @@ Boli Points are earned passively — no command needed.
 
 | Action | Points |
 |---|---|
-| Use `/astro` | +2 pts |
+| Use `/navi` | +2 pts |
 | Say a Trivandrum word in chat | +5 pts per word |
 | Trigger a curse-word reply | +1 pt |
 
@@ -102,34 +102,34 @@ Boli Points are earned passively — no command needed.
 
 ## Passive Bot Reactions
 
-AstRobot watches every message and reacts automatically.
+Navi watches every message and reacts automatically.
 
 ### 🗣️ Kochi Slang Detection
-Say any of these and AstRobot will condescendingly remind you where you are:
+Say any of these and Navi will condescendingly remind you where you are:
 
 `machane` · `machi` · `sayi` · `da scene` · `yov` · `monae` · `adipoli`
 
 **Example reply:**
 > *"Eda Arun, this is Thirontharam. Keep that Kochi talk at Ernakulam South station."*
 
-*85% chance of reply — sometimes AstRobot ignores you, which is also very on-brand.*
+*85% chance of reply — sometimes Navi ignores you, which is also very on-brand.*
 
 ---
 
 ### 💢 Curse Word Detection
-Use any Malayalam curse word and there's a 25% chance AstRobot roasts you back.
+Use any Malayalam curse word and there's a 25% chance Navi roasts you back.
 
 **Example reply:**
 > *"Eda Sree, nee oru pottan aanu. Ninte future darker than KD Puram at 7pm. Shokam."*
 
 ---
 
-### ❓ Tagging AstRobot
-Mention `@AstRobot` with a question and get a sarcastic answer.
+### ❓ Tagging Navi
+Mention `@Navi` with a question and get a sarcastic answer.
 
 ```
-@AstRobot will I get a promotion this year?
-@AstRobot what should I eat for lunch?
+@Navi will I get a promotion this year?
+@Navi what should I eat for lunch?
 ```
 
 **Example replies:**
@@ -140,7 +140,7 @@ Mention `@AstRobot` with a question and get a sarcastic answer.
 
 ### 🌅 Time-Aware Personality
 
-AstRobot's mood shifts throughout the day:
+Navi's mood shifts throughout the day:
 
 | Time | Personality |
 |---|---|
@@ -155,7 +155,7 @@ AstRobot's mood shifts throughout the day:
 
 ## 📅 Daily Omen + Weather Briefing
 
-Every day at **7:00 AM IST**, AstRobot posts a combined weather report and city-wide omen to `#off-topic`.
+Every day at **7:00 AM IST**, Navi posts a combined weather report and city-wide omen to `#off-topic`.
 
 **What it contains:**
 - Real Trivandrum weather for the day (temperature, rain forecast) — fetched live from Open-Meteo
@@ -163,7 +163,7 @@ Every day at **7:00 AM IST**, AstRobot posts a combined weather report and city-
 - A Trivandrum landmark as the day's "focal point"
 
 **Example:**
-> *"Namaskaram Thirontharam! Today: 34°C scorching sun, zero rain — basically Thampanoor is a tandoor oven. The stars say if you are near Chalai Market by noon, your chappal will melt and your mood also. Drink buttermilk, not opinions. Shokam day ahead. — AstRobot"*
+> *"Namaskaram Thirontharam! Today: 34°C scorching sun, zero rain — basically Thampanoor is a tandoor oven. The stars say if you are near Chalai Market by noon, your chappal will melt and your mood also. Drink buttermilk, not opinions. Shokam day ahead. — Navi"*
 
 ---
 
@@ -173,8 +173,8 @@ These work by typing in chat (no slash command needed). Owner only.
 
 | Message | Effect |
 |---|---|
-| `astro syros stop` | Silences AstRobot everywhere |
-| `astro syros start` | Brings AstRobot back online |
+| `navi syros stop` | Silences Navi everywhere |
+| `navi syros start` | Brings Navi back online |
 
 ---
 
@@ -200,4 +200,4 @@ Every Gemini call:
 - **Check `/mypoints` after chatting** — you'll often have points you didn't notice earning
 - **The more people use Trivandrum words, the richer the leaderboard** — `/rank` is more fun with a full server
 - **The 7 AM post is the highlight** — check `#off-topic` every morning for the omen
-- **Tag AstRobot with weird questions** — the more absurd the question, the better the sarcastic answer
+- **Tag Navi with weird questions** — the more absurd the question, the better the sarcastic answer

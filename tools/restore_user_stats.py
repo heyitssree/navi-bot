@@ -1,11 +1,11 @@
 """
 tools/restore_user_stats.py — Emergency restore of user_stats from last known-good snapshot.
 
-Only use this if astro_bot.db is confirmed unrecoverable and has been wiped/recreated.
+Only use this if navi.db is confirmed unrecoverable and has been wiped/recreated.
 Data captured from show_user_stats.py output on 2026-05-02.
 
 Usage:
-    cd ~/disco_bot && source .venv/bin/activate
+    cd ~/navi-bot && source .venv/bin/activate
     python tools/restore_user_stats.py
 """
 
@@ -19,7 +19,7 @@ sys.path.insert(0, parent_dir)
 from dotenv import load_dotenv
 load_dotenv()
 
-DB_PATH = os.getenv("DB_PATH", "/opt/astrobot/data/astro_bot.db")
+DB_PATH = os.getenv("DB_PATH", "/opt/navi-bot/data/navi.db")
 
 # Last known-good snapshot — 2026-05-02
 # (user_id, username, rashi, boli_points, prediction_count)
@@ -111,7 +111,7 @@ def restore():
 
     print(f"✅ Restored {count} users successfully.")
     print("Note: rashi values marked 'BAD RASHI' in the snapshot were left as-is.")
-    print("      Users can re-register their rashi with /astro when the bot is back up.")
+    print("      Users can re-register their rashi with /navi when the bot is back up.")
 
 
 if __name__ == "__main__":
