@@ -98,7 +98,7 @@ cd ~/navi-bot
 source .venv/bin/activate
 
 # Start the bot
-python bot.py
+python -m navi
 ```
 
 You should see startup logs like:
@@ -158,7 +158,7 @@ source .venv/bin/activate
 python tools/cache_cleaner.py
 
 # Restart the bot
-python bot.py
+python -m navi
 ```
 
 Or set up a weekly cron job (runs Sunday 2:30 AM IST = Sunday 21:00 UTC Saturday):

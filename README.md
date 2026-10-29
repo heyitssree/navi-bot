@@ -41,7 +41,7 @@ Gemini for the chatty parts; the curse/bless game itself uses no AI.
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 cp .env.example .env     # then fill it in; see SETUP.md
-python bot.py
+python -m navi
 ```
 
 Invite the bot with the `bot` and `applications.commands` scopes and enable the Message Content, Server Members and
@@ -72,16 +72,17 @@ Presence intents in the Discord Developer Portal.
 ## Layout
 
 ```
-bot.py                 # commands, events, background loops
-schema.py              # SQLite schema, migrations and queries
-prompts.py             # Gemini prompts
-curse_data.py          # curse / compliment / Boli / Kochi word lists and matchers
-glossary.py            # Trivandrum slang, landmarks, food, culture
-slang_scorer.py  template_resolver.py  market_engine.py  api_server.py
-services/              # gemini_service.py (keys, errors, breaker), api_manager.py (rate limit, cache)
-data/                  # slang_data.json, templates.json (database and media are not committed)
-tools/                 # maintenance scripts (db_report.py, recovery and import helpers)
-tests/legacy/          # characterisation tests: pytest
+navi/
+  app.py  context.py  config.py      # build the bot, AppContext, env/SSM config; python -m navi starts it
+  cogs/                              # slash commands, one cog per area (admin, economy, market, shop, games, ...)
+  handlers/pipeline.py + handlers/   # the on_message chain (order documented in the pipeline docstring)
+  services/                          # points (the only code that changes balances), levels, quota, backup, loops
+  llm/                               # base types, GeminiProvider, router (budget/cooldowns/breaker/safety), prompts/
+  db/                                # connection, schema_version migrations, repos/ (queries by area)
+  data/                              # curse_data, glossary, messages, slang_data.json, templates.json
+  api/partner.py                     # partner score API (FastAPI)
+  settings/store.py                  # feature toggle cache
+tests/  tools/  scripts/
 ```
 
 ## Development

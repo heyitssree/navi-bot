@@ -6,7 +6,7 @@ Run this when the bot fails with:
 
 It will:
   1. Check whether navi.db is a valid SQLite file
-  2. If not, back it up and create a fresh SQLite DB using schema.py
+  2. If not, back it up and create a fresh SQLite DB using navi/db
   3. The bot will start fresh (user data is lost unless a backup exists)
 
 Usage:
@@ -29,7 +29,7 @@ sys.path.insert(0, parent_dir)
 from dotenv import load_dotenv
 load_dotenv()
 
-import schema
+from navi.db import connection as schema
 
 SQLITE_MAGIC = b'SQLite format 3\x00'
 

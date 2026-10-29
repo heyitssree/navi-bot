@@ -21,7 +21,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from schema import init_db, DB_PATH
+from navi.db.connection import init_db, DB_PATH
 
 CSV_PATH = Path(sys.argv[1]) if len(sys.argv) > 1 else Path("data/backup_before_sqlite.csv")
 
@@ -66,5 +66,5 @@ print(f"[✓] Imported {imported} users from {CSV_PATH}")
 if skipped:
     print(f"[!] Skipped {skipped} rows (see errors above)")
 print("\nNext steps:")
-print("  python bot.py          # start the bot")
+print("  python -m navi          # start the bot")
 print("  /health                # verify user count and Boli totals")

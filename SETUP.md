@@ -31,7 +31,7 @@ python3 -m venv .venv
 source .venv/bin/activate          # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 cp .env.example .env               # edit .env and fill in the values above
-python bot.py
+python -m navi
 ```
 
 The database (`data/navi.db`) and tables are created on first start. Set `DB_PATH` to keep it outside the repo.

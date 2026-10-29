@@ -2,7 +2,7 @@ from datetime import date, timedelta
 
 import pytest
 
-import market_engine as me
+from navi.services import market_engine as me
 
 ITEMS = [("it_layoff_hedge", "high"), ("cricket_mood_index", "medium"), ("monsoon_insurance", "low"),
          ("coconut_oil_commodity", "medium"), ("other", "unknown-volatility")]

@@ -1,11 +1,11 @@
 """Characterises the two disagreeing sources of feature defaults (fixed in Phase 1/4)."""
 
-import bot as navi
+from navi.settings import store as navi
 
 
 def test_in_memory_defaults_disable_llm_games():
-    assert navi._FEATURE_DEFAULTS["feature_navi_challenge"] == 0
-    assert navi._FEATURE_DEFAULTS["feature_type_race"] == 0
+    assert navi.DEFAULTS["feature_navi_challenge"] == 0
+    assert navi.DEFAULTS["feature_type_race"] == 0
 
 
 def test_found_not_fixed_db_seed_disagrees(db):

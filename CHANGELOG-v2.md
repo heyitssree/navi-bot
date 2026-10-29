@@ -74,3 +74,62 @@ model fallback, cacheable, matcher equivalence, last_seen flush, kanmanilla DB-f
   runs in a `finally` around `bot.run()`. Wiring the backup the same way is left for Phase 2.
 - `user_stats.last_seen` is a TIMESTAMP column, so `sqlite3` returns `datetime` objects (PARSE_DECLTYPES); `get_last_seen` normalises to text.
 - Not exercised here: Discord-side checks (a fake 404 sending one DM is covered by a unit test; the DM path itself needs the test server).
+
+## Phase 2 - Package refactor, no behaviour change (branch `v2/phase-2-refactor`)
+
+`bot.py` (5,200 lines), `schema.py` (2,570), `prompts.py`, `curses.py`, `api_server.py`, `services/` are gone.
+Entry point is `python -m navi` (Dockerfile, Procfile, `navi.service`, README and docs updated). No file in `navi/` is over 600 lines
+(largest: `cogs/llm_games.py` 582, the disabled Navi Challenge / Type Race code).
+
+### Layout (as in spec section 6.1, with the differences listed below)
+`navi/app.py` (build, events, named background tasks, shutdown), `context.py` (AppContext + RuntimeState), `config.py` (env + optional
+SSM via `NAVI_SSM_PREFIX`), `settings/store.py`, `db/{connection,migrate}.py`, `db/migrations/`, `db/repos/{users,points,counters,content,
+knowledge,market,media,games,events,perks,settings}.py`, `llm/{base,gemini,router,safety}.py` + `llm/prompts/`, `services/`, `handlers/`
+(`pipeline.py` + 10 handlers), 11 cogs, `data/`, `api/partner.py`.
+
+### How it was verified
+- The Phase 0 characterisation tests were kept; only imports and the harness changed (`FakeUser`/`make_ctx` build an `AppContext` instead of
+  monkeypatching module globals). The curse/bless/slang/prediction/summ assertions are unchanged and pass.
+- `tests/fixtures/command_tree_baseline.json` is a snapshot of all 26 top-level slash commands/groups/context menus taken from the old
+  `bot.py` (names, descriptions, options, choices, default permissions). The new tree is byte-identical (`test_slash_command_surface_is_unchanged`).
+- `tests/fixtures/baseline_schema.json` is the DDL produced by the old `schema.py`; the new migration runner produces the identical schema and seeds.
+  A copy of `data/dev/navi_dev.db` also migrates with no row loss.
+- Architecture tests: no file over 600 lines, old monoliths gone, only `services/points.py` may call the balance-changing repo functions,
+  no module-level mutable state in cogs/handlers/services (two read-only JSON caches allow-listed), every cog has `setup()`, pipeline order is fixed.
+- `on_ready` wiring, message flow and shutdown are exercised against fakes (`tests/phase2/test_app_startup.py`).
+- 509 tests pass. **Not done:** the manual smoke run of every slash command in the test server (needs a Discord token and server),
+  and the live Gemini call (the billing 403 from Phase 1 was still returned when re-checked at the start of this phase).
+
+### What changed beyond a pure move (all small, listed so nothing is silent)
+- `LLMRouter` (+ `GeminiProvider`, `LLMRequest/Response/Error`) replaces `ApiManager` + `GeminiService`; the Phase 1 error-class rules and
+  their tests moved over unchanged. 12 call sites now `await ctx.llm.generate(...)` (no more executor + lambda). Purposes: qa, vibe, summary,
+  mod, prediction, template_batch. The RPM budget stays the old fixed 10/min window; the priority-yield rule exists but is off
+  (`yield_below_fraction=0`) so behaviour is identical until Phase 4 exposes it. `safety.check_output` is a pass-through until Phase 5.
+  `max_tokens` is not sent to Gemini (it would truncate replies); `LLMRequest.temperature` defaults to 0.8 (today's value) instead of the spec's 0.6.
+- The router's `on_event` hook exists but is not wired (the `events` table arrives in Phase 3), so `api_call_log` is still unused as before.
+- Shutdown now really runs: `NaviBot.close()` cancels the named tasks, flushes `last_seen`, writes the stop event, takes the backup and closes SQLite.
+  `discord.Client` never dispatched the old `on_close`, so the shutdown backup never ran before (recorded in Phase 1; fixed here as promised).
+- `bot` is a `commands.Bot` (needed for `load_extension`) with `NaviTree`; prefix commands are not processed, `on_message` is the pipeline.
+- `0001_baseline` is a Python migration (`m0001_baseline.py`) wrapping the old idempotent `_create_tables`, not `0001_baseline.sql` as in the spec:
+  it contains conditional ALTERs and seeds that cannot be expressed safely as plain SQL on already-migrated databases.
+  The runner supports both `.py` and `.sql`, and creates `schema_version` itself, so Phase 3's `0002_v2.sql` must use `CREATE TABLE IF NOT EXISTS schema_version` (or omit it).
+- Private helpers used across modules lost their leading underscore (e.g. `check_cosmic_quota`, `DAILY_QUOTA`, `templatize`, `do_backup`).
+- Cross-cutting state moved to `ctx.state`; `FeatureFlags` (`ctx.settings`) holds the toggle cache and testing guilds.
+- Views/Modals/Groups get the context from `interaction.client.ctx`; cogs use `self.ctx`.
+
+### Deferred / differences from the spec layout
+- `services/curse_game.py` (curse maths as pure functions) is not extracted: the curse and bless rules were moved verbatim into
+  `handlers/curse_commands.py` because the spec says not to change them and the 24 characterisation tests pin the behaviour. Extract in Phase 3 when the ledger lands.
+- `handlers/{context_reply,...}`, `services/{knowledge,privacy,weather}.py`, `db/repos/{permissions,privacy}.py`, `cogs/{privacy,teach}.py`,
+  `settings/registry.py` arrive in the phases that need them. `db/legacy.py` was never created (imports were rewritten directly), so there is nothing to delete.
+- `cogs/llm_games.py` holds the disabled Navi Challenge / Type Race code; it is not loaded as a cog (its command decorators were already commented out).
+- Config (SSM loader) is unit-tested with a fake SSM client only.
+
+### Found, not fixed
+- `on_ready` re-runs everything on every gateway reconnect (new DB connection, duplicate background tasks). Unchanged.
+- On a fresh database `feature_type_race` / `feature_navi_challenge` load as enabled (seed = 1); harmless today because their commands are not registered.
+
+### Manual smoke checklist for the test server (not run)
+`/navi /ping /rank /leaderboard /mypoints /gift /lucky_draw /summ /kanmanilla /audit /mod_tldr /strike /help /health /temp_vc /my_media`,
+`/market view|buy|sell|holdings|history`, `/shop view|buy`, `/flip /roll_dice /roulette /slots`, `/admin ...`, the three message context menus,
+`navi @user`, reply-`navi`, `navi`, `chunk`, `;;shortcut`, an @mention, a curse word, the 📰 link-summary reaction, member join, voice-state temp-VC cleanup.

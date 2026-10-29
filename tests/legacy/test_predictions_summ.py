@@ -1,102 +1,93 @@
+import asyncio
+import random
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-import bot as navi
-import schema
-from tests.legacy.harness import FakeUser, install
+from navi.cogs.summaries import SummariesCog
+from navi.data.messages import FALLBACK_MESSAGES
+from navi.db.repos.content import get_todays_user_prediction, save_user_prediction
+from navi.db.repos.users import get_user_profile, upsert_user
+from navi.services.predictions import get_navi_prediction
+from tests.legacy.harness import FakeLLM, FakeUser, make_ctx
 
-FALLBACKS = navi.FALLBACK_MESSAGES
-
-
-class FakeApiMgr:
-    def __init__(self, text="LLM says hi", from_cache=False, pool="POOL"):
-        self.calls, self.cache_only_calls = [], []
-        self.text, self.from_cache, self.pool = text, from_cache, pool
-
-    def call(self, **kw):
-        self.calls.append(kw)
-        return self.text, self.from_cache
-
-    def call_cache_only(self, **kw):
-        self.cache_only_calls.append(kw)
-        return self.pool, True
+FALLBACKS = FALLBACK_MESSAGES
 
 
 @pytest.fixture()
 def pred(db, monkeypatch):
-    install(navi, monkeypatch, db)
-    api = FakeApiMgr()
-    monkeypatch.setattr(navi, "api_mgr", api)
+    llm = FakeLLM()
+    ctx = make_ctx(db, llm=llm)
 
     async def no_sleep(_):
         return None
 
-    monkeypatch.setattr(navi.asyncio, "sleep", no_sleep)
-    return db, api
+    monkeypatch.setattr(asyncio, "sleep", no_sleep)
+    return ctx, llm
 
 
 def _seed_today(db, uid=5, text="today's cached"):
-    schema.upsert_user(db, uid, "u")
-    schema.save_user_prediction(db, uid, text)
+    upsert_user(db, uid, "u")
+    save_user_prediction(db, uid, text)
 
 
 async def test_first_call_without_cache_calls_llm_and_saves(pred):
-    db, api = pred
-    out = await navi.get_navi_prediction(5, "Asha", usage_count=1)
-    assert out == "LLM says hi" and len(api.calls) == 1
-    assert api.calls[0]["cache_type"] == "navi"
-    assert schema.get_todays_user_prediction(db, 5) == "LLM says hi"
-    assert schema.get_user_profile(db, 5)["prediction_count"] == 1
-    assert schema.get_user_profile(db, 5)["rashi"]  # rashi assigned
+    ctx, api = pred
+    out = await get_navi_prediction(ctx, 5, "Asha", usage_count=1)
+    assert out == "LLM says hi" and len(api.requests) == 1
+    assert api.requests[0]["cache_type"] == "navi"
+    assert api.requests[0]["req"].purpose == "prediction"
+    assert get_todays_user_prediction(ctx.db, 5) == "LLM says hi"
+    assert get_user_profile(ctx.db, 5)["prediction_count"] == 1
+    assert get_user_profile(ctx.db, 5)["rashi"]  # rashi assigned
 
 
 async def test_first_call_reuses_daily_cache_at_configured_chance(pred, monkeypatch):
-    db, api = pred
-    _seed_today(db)
-    monkeypatch.setattr(navi.random, "random", lambda: 0.0)  # < 0.50 default
-    assert await navi.get_navi_prediction(5, "Asha", 1) == "today's cached"
-    assert api.calls == []
-    monkeypatch.setattr(navi.random, "random", lambda: 0.99)
-    assert await navi.get_navi_prediction(5, "Asha", 1) == "LLM says hi"
-    assert len(api.calls) == 1
+    ctx, api = pred
+    _seed_today(ctx.db)
+    monkeypatch.setattr(random, "random", lambda: 0.0)  # < 0.50 default
+    assert await get_navi_prediction(ctx, 5, "Asha", 1) == "today's cached"
+    assert api.requests == []
+    monkeypatch.setattr(random, "random", lambda: 0.99)
+    assert await get_navi_prediction(ctx, 5, "Asha", 1) == "LLM says hi"
+    assert len(api.requests) == 1
 
 
 async def test_second_call_uses_35_percent_cache(pred, monkeypatch):
-    db, api = pred
-    _seed_today(db)
-    monkeypatch.setattr(navi.random, "random", lambda: 0.34)
-    assert await navi.get_navi_prediction(5, "Asha", 2) == "today's cached"
-    assert api.calls == []
-    monkeypatch.setattr(navi.random, "random", lambda: 0.35)
-    assert await navi.get_navi_prediction(5, "Asha", 2) == "LLM says hi"
+    ctx, api = pred
+    _seed_today(ctx.db)
+    monkeypatch.setattr(random, "random", lambda: 0.34)
+    assert await get_navi_prediction(ctx, 5, "Asha", 2) == "today's cached"
+    assert api.requests == []
+    monkeypatch.setattr(random, "random", lambda: 0.35)
+    assert await get_navi_prediction(ctx, 5, "Asha", 2) == "LLM says hi"
 
 
 async def test_third_call_never_calls_llm(pred):
-    db, api = pred
-    _seed_today(db)
-    assert await navi.get_navi_prediction(5, "Asha", 3) == "today's cached"
-    assert await navi.get_navi_prediction(5, "Asha", 7) == "today's cached"
-    assert api.calls == [] and api.cache_only_calls == []
+    ctx, api = pred
+    _seed_today(ctx.db)
+    assert await get_navi_prediction(ctx, 5, "Asha", 3) == "today's cached"
+    assert await get_navi_prediction(ctx, 5, "Asha", 7) == "today's cached"
+    assert api.requests == [] and api.cache_only_calls == []
 
 
 async def test_third_call_without_daily_uses_pool_cache_only(pred):
-    db, api = pred
-    schema.upsert_user(db, 6, "u")
-    assert await navi.get_navi_prediction(6, "Asha", 3) == "POOL"
-    assert api.calls == [] and len(api.cache_only_calls) == 1
+    ctx, api = pred
+    upsert_user(ctx.db, 6, "u")
+    assert await get_navi_prediction(ctx, 6, "Asha", 3) == "POOL"
+    assert api.requests == [] and len(api.cache_only_calls) == 1
     assert api.cache_only_calls[0]["cache_type"] == "navi"
 
 
 async def test_fallback_or_cached_result_is_not_saved(pred):
-    db, api = pred
+    ctx, api = pred
     api.text, api.from_cache = FALLBACKS[0], False
-    await navi.get_navi_prediction(5, "Asha", 1)
-    assert schema.get_todays_user_prediction(db, 5) is None
+    await get_navi_prediction(ctx, 5, "Asha", 1)
+    assert get_todays_user_prediction(ctx.db, 5) is None
     api.text, api.from_cache = "from pool", True
-    await navi.get_navi_prediction(5, "Asha", 1)
-    assert schema.get_todays_user_prediction(db, 5) is None
+    await get_navi_prediction(ctx, 5, "Asha", 1)
+    assert get_todays_user_prediction(ctx.db, 5) is None
 
 
 # ------------------------------- /summ ----------------------------------
@@ -118,13 +109,14 @@ def _m(author, text, is_bot=False):
 
 
 async def _run_summ(monkeypatch, msgs):
-    api = FakeApiMgr(text="SUMMARY")
-    monkeypatch.setattr(navi, "api_mgr", api)
+    api = FakeLLM(text="SUMMARY")
+    ctx = make_ctx(None, llm=api)
     inter = MagicMock()
+    inter.client = ctx.bot
     inter.response.defer = AsyncMock()
     inter.followup.send = AsyncMock()
     inter.channel.history = _History(msgs)
-    await navi.summ_slash.callback(inter, 30, None, None, False)
+    await SummariesCog(ctx).summ_slash.callback(SummariesCog(ctx), inter, 30, None, None, False)
     return api, inter
 
 
@@ -137,7 +129,7 @@ async def test_summ_filters_bots_commands_and_scrubs_mentions(monkeypatch):
         _m(5, "second kept"),
     ]
     api, inter = await _run_summ(monkeypatch, newest_first)
-    prompt = api.calls[0]["prompt"]
+    prompt = api.requests[0]["req"].prompt
     assert "u5: second kept" in prompt
     assert "u1: hello [mentioned-user] and [mentioned-user] and [mentioned-user] and [mentioned-user]" in prompt
     assert "/summ" not in prompt and "I am a bot" not in prompt and "u4" not in prompt
@@ -147,17 +139,17 @@ async def test_summ_filters_bots_commands_and_scrubs_mentions(monkeypatch):
 
 async def test_summ_all_filtered_sends_notice_without_llm(monkeypatch):
     api, inter = await _run_summ(monkeypatch, [_m(3, "bot", is_bot=True), _m(2, "/x")])
-    assert api.calls == []
+    assert api.requests == []
     assert "Nothing to summarise" in inter.followup.send.await_args.args[0]
 
 
 async def test_summ_empty_history(monkeypatch):
     api, inter = await _run_summ(monkeypatch, [])
-    assert api.calls == []
+    assert api.requests == []
     assert "No messages found" in inter.followup.send.await_args.args[0]
 
 
 async def test_summ_uses_qa_cache_type_today(monkeypatch):
     """Characterises Phase-1 bug: /summ passes cache_type='qa' (unrelated cache fallback)."""
     api, _ = await _run_summ(monkeypatch, [_m(1, "hi")])
-    assert api.calls[0]["cache_type"] == "qa"
+    assert api.requests[0]["cache_type"] == "qa"

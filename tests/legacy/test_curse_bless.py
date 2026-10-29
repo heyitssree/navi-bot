@@ -1,10 +1,16 @@
 """Characterisation of the AI-free curse (navi) and bless (chunk) games. Rules must not change."""
+import asyncio
+import random
+
 import pytest
 
-import bot as navi
-import schema
-from curse_data import CURSE_WORDS, COMPLIMENTS
-from tests.legacy.harness import FakeUser, install, make_message, points, seed, xp
+from navi.data.curse_data import COMPLIMENTS, CURSE_WORDS
+from navi.db.repos.counters import add_extra_actions, get_daily_action_count, get_extra_actions
+from navi.db.repos.perks import grant_perk
+from navi.db.repos.settings import get_config_float, set_config_float
+from navi.handlers import curse_commands, pipeline
+from navi.services.quota import DAILY_QUOTA
+from tests.legacy.harness import FakeUser, make_ctx, make_message, points, seed, xp
 
 CASTER = FakeUser(1, "caster")
 TARGET = FakeUser(2, "target")
@@ -13,23 +19,46 @@ BY_TIER = {t: next(c for c in CURSE_WORDS if c["tier"] == t) for t in ("Mild", "
 TIER_DEFAULT = {"Mild": 0.10, "Moderate": 0.15, "Severe": 0.20}
 
 
+class _Navi:
+    """Tiny shim so the original test bodies read the same: navi.on_message(msg)."""
+
+    def __init__(self, ctx):
+        self.ctx = ctx
+
+    async def on_message(self, msg):
+        await pipeline.on_message(self.ctx, msg)
+
+
 @pytest.fixture()
 def env(db, monkeypatch):
-    install(navi, monkeypatch, db)
-    seed(db, schema, CASTER, TARGET)
+    ctx = make_ctx(db)
+    monkeypatch.setattr(_Holder, "navi", _Navi(ctx))
+    seed(db, CASTER, TARGET)
     return db
+
+
+class _Holder:
+    navi = None
+
+
+class _NaviProxy:
+    def __getattr__(self, name):
+        return getattr(_Holder.navi, name)
+
+
+navi = _NaviProxy()
 
 
 def force(monkeypatch, curse, roll):
     """Fix the curse chosen and the value returned by random.random()."""
-    monkeypatch.setattr(navi, "get_random_curse", lambda: curse)
-    monkeypatch.setattr(navi.random, "random", lambda: roll)
+    monkeypatch.setattr(curse_commands, "get_random_curse", lambda: curse)
+    monkeypatch.setattr(random, "random", lambda: roll)
 
 
 def two_calls(monkeypatch, curse, rolls):
     it = iter(rolls)
-    monkeypatch.setattr(navi, "get_random_curse", lambda: curse)
-    monkeypatch.setattr(navi.random, "random", lambda: next(it))
+    monkeypatch.setattr(curse_commands, "get_random_curse", lambda: curse)
+    monkeypatch.setattr(random, "random", lambda: next(it))
 
 
 def test_tier_data_matches_documented_defaults():
@@ -63,7 +92,7 @@ async def test_curse_lands_at_or_above_threshold(env, monkeypatch, tier):
 @pytest.mark.parametrize("perk", ["curse_protection", "deflector_shield"])
 async def test_protected_or_shielded_always_bounce(env, monkeypatch, perk):
     c = BY_TIER["Mild"]
-    schema.grant_perk(env, TARGET.id, perk, 1)
+    grant_perk(env, TARGET.id, perk, 1)
     force(monkeypatch, c, 0.999)  # would land for an unprotected target
     await navi.on_message(make_message(CASTER, "navi <@2>", mentions=[TARGET]))
     assert points(env, CASTER.id) == -c["target_damage"]
@@ -82,8 +111,8 @@ async def test_backfire_tier_is_configurable(env, monkeypatch):
 def test_found_not_fixed_set_config_float_is_noop_for_unseeded_key(env):
     """Known quirk (CHANGELOG-v2 'Found, not fixed'): set_config_float only UPDATEs, and the
     backfire_chance_* rows are never seeded, so /admin set on them silently does nothing."""
-    schema.set_config_float(env, "backfire_chance_mild", 0.90)
-    assert schema.get_config_float(env, "backfire_chance_mild", 0.10) == 0.10
+    set_config_float(env, "backfire_chance_mild", 0.90)
+    assert get_config_float(env, "backfire_chance_mild", 0.10) == 0.10
 
 
 async def test_reply_curse_same_rules(env, monkeypatch):
@@ -106,7 +135,7 @@ async def test_self_curse_costs_damage_no_roll(env, monkeypatch):
 
 async def test_curse_on_bot_user_is_deflected_without_points(env, monkeypatch):
     force(monkeypatch, BY_TIER["Mild"], 0.99)
-    me = FakeUser(navi.bot.user.id, "navi-bot")
+    me = FakeUser(999, "navi-bot")
     await navi.on_message(make_message(CASTER, "navi <@999>", mentions=[me]))
     assert points(env, CASTER.id) == 0
 
@@ -114,9 +143,9 @@ async def test_curse_on_bot_user_is_deflected_without_points(env, monkeypatch):
 async def test_quota_accounting_and_block(env, monkeypatch):
     c = BY_TIER["Mild"]
     force(monkeypatch, c, 0.99)
-    for _ in range(navi._DAILY_QUOTA):
+    for _ in range(DAILY_QUOTA):
         await navi.on_message(make_message(CASTER, "navi <@2>", mentions=[TARGET]))
-    assert schema.get_daily_action_count(env, CASTER.id) == navi._DAILY_QUOTA
+    assert get_daily_action_count(env, CASTER.id) == DAILY_QUOTA
     before = points(env, TARGET.id)
     blocked = make_message(CASTER, "navi <@2>", mentions=[TARGET])
     await navi.on_message(blocked)
@@ -127,18 +156,18 @@ async def test_quota_accounting_and_block(env, monkeypatch):
 async def test_extra_actions_allow_over_quota_and_are_consumed(env, monkeypatch):
     c = BY_TIER["Mild"]
     force(monkeypatch, c, 0.99)
-    for _ in range(navi._DAILY_QUOTA):
+    for _ in range(DAILY_QUOTA):
         await navi.on_message(make_message(CASTER, "navi <@2>", mentions=[TARGET]))
-    schema.add_extra_actions(env, CASTER.id, 2)
+    add_extra_actions(env, CASTER.id, 2)
     await navi.on_message(make_message(CASTER, "navi <@2>", mentions=[TARGET]))
-    assert schema.get_extra_actions(env, CASTER.id) == 1
-    assert schema.get_daily_action_count(env, CASTER.id) == navi._DAILY_QUOTA + 1
+    assert get_extra_actions(env, CASTER.id) == 1
+    assert get_daily_action_count(env, CASTER.id) == DAILY_QUOTA + 1
 
 
 async def test_potion_echo_sign_follows_first_curse(env, monkeypatch):
     """Multiplier Potion: the 2nd curse reverses iff the 1st did."""
     c = BY_TIER["Mild"]
-    schema.grant_perk(env, CASTER.id, "multiplier_potion", 1)
+    grant_perk(env, CASTER.id, "multiplier_potion", 1)
     captured = []
 
     def fake_task(coro):
@@ -148,8 +177,8 @@ async def test_potion_echo_sign_follows_first_curse(env, monkeypatch):
     async def no_sleep(_):
         return None
 
-    monkeypatch.setattr(navi.asyncio, "create_task", fake_task)
-    monkeypatch.setattr(navi.asyncio, "sleep", no_sleep)
+    monkeypatch.setattr(asyncio, "create_task", fake_task)
+    monkeypatch.setattr(asyncio, "sleep", no_sleep)
 
     force(monkeypatch, c, 0.99)  # first lands
     msg = make_message(CASTER, "navi <@2>", mentions=[TARGET])
@@ -170,8 +199,8 @@ async def test_potion_echo_sign_follows_first_curse(env, monkeypatch):
 # ------------------------------ bless -----------------------------------
 
 def bless(monkeypatch, compliment, universal_roll):
-    monkeypatch.setattr(navi, "get_random_compliment", lambda: compliment)
-    monkeypatch.setattr(navi.random, "random", lambda: universal_roll)
+    monkeypatch.setattr(curse_commands, "get_random_compliment", lambda: compliment)
+    monkeypatch.setattr(random, "random", lambda: universal_roll)
 
 
 @pytest.mark.parametrize("comp", COMPLIMENTS[::6])

@@ -19,10 +19,9 @@ import pytest  # noqa: E402
 @pytest.fixture()
 def db(tmp_path, monkeypatch):
     """A fresh, fully-migrated SQLite database per test."""
-    import schema
+    from navi.db.connection import init_db
 
-    monkeypatch.setattr(schema, "DB_PATH", tmp_path / "test.db")
-    conn = schema.init_db()
+    conn = init_db(tmp_path / "test.db")
     yield conn
     conn.close()
 

@@ -1,6 +1,6 @@
 import pytest
 
-import slang_scorer
+from navi.services import slang_scorer
 
 
 @pytest.fixture()

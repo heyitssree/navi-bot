@@ -5,11 +5,12 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-import bot as navi
-import curse_data as cd
-import schema
-from tests.legacy.harness import FakeUser, install, make_message
-
+from navi.cogs.summaries import SummariesCog
+from navi.data import curse_data as cd
+from navi.db.repos.users import get_last_seen, upsert_user
+from navi.handlers import pipeline
+from navi.services.last_seen import flush_last_seen
+from tests.legacy.harness import FakeLLM, FakeUser, make_ctx, make_message
 
 # ---- precompiled matchers must equal the old per-word loops ----
 
@@ -68,30 +69,28 @@ def test_severe_regex_matches_only_severe():
 
 # ---- last_seen tracking ----
 
-async def test_every_message_tracks_last_seen_and_flush_is_one_executemany(db, monkeypatch):
-    install(navi, monkeypatch, db)
-    monkeypatch.setattr(navi, "_last_seen_pending", {})
+async def test_every_message_tracks_last_seen_and_flush_is_one_executemany(db):
+    ctx = make_ctx(db)
     a, b = FakeUser(1, "a"), FakeUser(2, "b")
     for u in (a, b):
-        schema.upsert_user(db, u.id, u.display_name)
+        upsert_user(db, u.id, u.display_name)
     db.execute("UPDATE user_stats SET last_seen='2020-01-01 00:00:00'")
     db.commit()
-    navi._seen_users.update({1, 2})  # the first-message-per-session upsert already wrote last_seen
+    ctx.state.seen_users.update({1, 2})  # the first-message-per-session upsert already wrote last_seen
     for _ in range(3):
-        await navi.on_message(make_message(a, "hello"))
-    await navi.on_message(make_message(b, "hi"))
-    assert set(navi._last_seen_pending) == {1, 2}
-    assert schema.get_last_seen(db, 1) == "2020-01-01 00:00:00"  # not written per message
+        await pipeline.on_message(ctx, make_message(a, "hello"))
+    await pipeline.on_message(ctx, make_message(b, "hi"))
+    assert set(ctx.state.last_seen_pending) == {1, 2}
+    assert get_last_seen(db, 1) == "2020-01-01 00:00:00"  # not written per message
 
     calls = []
     real = db
-    proxy = SimpleNamespace(executemany=lambda *a_, **k: (calls.append(a_), real.executemany(*a_, **k))[1],
-                            commit=real.commit, execute=real.execute)
-    monkeypatch.setattr(navi, "db_conn", proxy)
-    assert navi._flush_last_seen() == 2
+    ctx.db = SimpleNamespace(executemany=lambda *a_, **k: (calls.append(a_), real.executemany(*a_, **k))[1],
+                             commit=real.commit, execute=real.execute)
+    assert flush_last_seen(ctx) == 2
     assert len(calls) == 1
-    assert navi._last_seen_pending == {}
-    assert schema.get_last_seen(db, 1) > "2020-01-01 00:00:00"
+    assert ctx.state.last_seen_pending == {}
+    assert get_last_seen(db, 1) > "2020-01-01 00:00:00"
 
 
 # ---- /kanmanilla reads the DB first ----
@@ -101,13 +100,12 @@ class _Guild:
         self.text_channels = [MagicMock()]
 
 
-async def _kan(monkeypatch, db, target, **kw):
-    install(navi, monkeypatch, db)
-    api = MagicMock()
-    api.call.return_value = ("POSTER", False)
-    monkeypatch.setattr(navi, "api_mgr", api)
-    monkeypatch.setattr(navi, "_last_seen_pending", kw.get("pending", {}))
+async def _kan(db, target, pending=None):
+    llm = FakeLLM(text="POSTER")
+    ctx = make_ctx(db, llm=llm)
+    ctx.state.last_seen_pending.update(pending or {})
     inter = MagicMock()
+    inter.client = ctx.bot
     inter.response.defer = AsyncMock()
     inter.followup.send = AsyncMock()
     inter.guild = _Guild()
@@ -122,38 +120,40 @@ async def _kan(monkeypatch, db, target, **kw):
         return g()
     inter.guild.text_channels[0].history = hist
     target.joined_at = datetime.now(timezone.utc) - timedelta(days=40)
-    await navi.kanmanilla_slash.callback(inter, target)
-    return api, inter, scanned
+    cog = SummariesCog(ctx)
+    await cog.kanmanilla_slash.callback(cog, inter, target)
+    return llm, inter, scanned
 
 
-async def test_kanmanilla_uses_db_no_channel_scan(db, monkeypatch):
+async def test_kanmanilla_uses_db_no_channel_scan(db):
     t = FakeUser(7, "gone")
-    schema.upsert_user(db, 7, "gone")
+    upsert_user(db, 7, "gone")
     old = (datetime.now(timezone.utc) - timedelta(days=9)).strftime("%Y-%m-%d %H:%M:%S")
     db.execute("UPDATE user_stats SET last_seen=? WHERE user_id=7", [old]); db.commit()
-    api, inter, scanned = await _kan(monkeypatch, db, t)
+    llm, inter, scanned = await _kan(db, t)
     assert scanned == []
-    assert "9" in api.call.call_args.kwargs["prompt"]
+    assert "9" in llm.requests[0]["req"].prompt
 
 
-async def test_kanmanilla_scans_when_no_record(db, monkeypatch):
+async def test_kanmanilla_scans_when_no_record(db):
     t = FakeUser(8, "new")
-    api, inter, scanned = await _kan(monkeypatch, db, t)
+    llm, inter, scanned = await _kan(db, t)
     assert scanned == [1]
-    assert "40" in api.call.call_args.kwargs["prompt"]  # falls back to joined_at
+    assert "40" in llm.requests[0]["req"].prompt  # falls back to joined_at
 
 
-async def test_kanmanilla_prefers_pending_in_memory(db, monkeypatch):
+async def test_kanmanilla_prefers_pending_in_memory(db):
     t = FakeUser(9, "recent")
-    schema.upsert_user(db, 9, "recent")
+    upsert_user(db, 9, "recent")
     db.execute("UPDATE user_stats SET last_seen='2020-01-01 00:00:00' WHERE user_id=9"); db.commit()
     now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
-    api, inter, scanned = await _kan(monkeypatch, db, t, pending={9: now})
-    assert api.call.call_count == 0  # seen <2 days ago -> short-circuit message
+    llm, inter, scanned = await _kan(db, t, pending={9: now})
+    assert llm.requests == []  # seen <2 days ago -> short-circuit message
     assert "recently" in inter.followup.send.await_args.args[0]
 
 
 def test_navi_prediction_is_the_only_cacheable_call_site():
-    import inspect
-    src = inspect.getsource(navi)
-    assert src.count("cacheable=True") == 1
+    """Only the /navi prediction purpose may use the template pool."""
+    from navi.llm.router import CACHEABLE
+
+    assert CACHEABLE == {"prediction"}

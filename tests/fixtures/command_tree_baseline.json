@@ -1,0 +1,935 @@
+[
+ {
+  "contexts": null,
+  "default_member_permissions": 8,
+  "description": "Navi owner configuration controls",
+  "dm_permission": true,
+  "integration_types": null,
+  "name": "admin",
+  "nsfw": false,
+  "options": [
+   {
+    "description": "Set anti-spam cooldown in seconds",
+    "name": "set_cooldown",
+    "options": [
+     {
+      "description": "\u2026",
+      "name": "seconds",
+      "required": true,
+      "type": 4
+     }
+    ],
+    "type": 1
+   },
+   {
+    "description": "Toggle Free-Only API mode (circuit breaker bypass)",
+    "name": "toggle_killswitch",
+    "options": [],
+    "type": 1
+   },
+   {
+    "description": "Toggle the master kill switch \u2014 completely silences the bot",
+    "name": "killswitch",
+    "options": [],
+    "type": 1
+   },
+   {
+    "description": "Enable or disable a bot feature",
+    "name": "toggle_feature",
+    "options": [
+     {
+      "choices": [
+       {
+        "name": "Navi Predictions",
+        "value": "feature_navi"
+       },
+       {
+        "name": "Curses & Blessings (navi/chunk)",
+        "value": "feature_curses"
+       },
+       {
+        "name": "Gambling (/flip, /roll_dice, /roulette, /slots)",
+        "value": "feature_gambling"
+       },
+       {
+        "name": "Local Media Shortcuts (;;name)",
+        "value": "feature_local_media"
+       },
+       {
+        "name": "Boli Points Tracking",
+        "value": "feature_boli_points"
+       },
+       {
+        "name": "Kochi Slang Detection",
+        "value": "feature_kochi_replies"
+       },
+       {
+        "name": "Passive Curse Replies",
+        "value": "feature_curse_replies"
+       },
+       {
+        "name": "Vibe Check (auto de-escalation)",
+        "value": "feature_vibe_check"
+       },
+       {
+        "name": "Link Summary (emoji reaction)",
+        "value": "feature_link_summary"
+       },
+       {
+        "name": "Kanmanilla (missing person)",
+        "value": "feature_kanmanilla"
+       },
+       {
+        "name": "Welcome Messages",
+        "value": "feature_welcome"
+       },
+       {
+        "name": "Temp VC Generator (/temp_vc)",
+        "value": "feature_temp_vc"
+       },
+       {
+        "name": "Mod Audit (/audit)",
+        "value": "feature_audit"
+       },
+       {
+        "name": "Mod TL;DR (/mod_tldr)",
+        "value": "feature_mod_tldr"
+       },
+       {
+        "name": "3-Strike System",
+        "value": "feature_strikes"
+       }
+      ],
+      "description": "Feature to toggle",
+      "name": "feature",
+      "required": true,
+      "type": 3
+     },
+     {
+      "description": "Turn it on (True) or off (False)",
+      "name": "enabled",
+      "required": true,
+      "type": 5
+     }
+    ],
+    "type": 1
+   },
+   {
+    "description": "Toggle testing mode for this server \u2014 bypasses rate limits, disables Boli/XP rewards",
+    "name": "testing",
+    "options": [],
+    "type": 1
+   },
+   {
+    "description": "Set the probability (0.0\u20131.0) for a specific behaviour",
+    "name": "set_chance",
+    "options": [
+     {
+      "choices": [
+       {
+        "name": "Cache Reuse (navi predictions)",
+        "value": "cache_reuse_chance"
+       },
+       {
+        "name": "Kochi Slang Reply",
+        "value": "kochi_reply_chance"
+       },
+       {
+        "name": "Passive Curse Reply",
+        "value": "curse_reply_chance"
+       },
+       {
+        "name": "Universal Blessing (5% default)",
+        "value": "universal_blessing_chance"
+       },
+       {
+        "name": "Curse Backfire \u2014 Mild tier (10% default)",
+        "value": "backfire_chance_mild"
+       },
+       {
+        "name": "Curse Backfire \u2014 Moderate tier (15% default)",
+        "value": "backfire_chance_moderate"
+       },
+       {
+        "name": "Curse Backfire \u2014 Severe tier (20% default)",
+        "value": "backfire_chance_severe"
+       }
+      ],
+      "description": "Which probability to adjust",
+      "name": "feature",
+      "required": true,
+      "type": 3
+     },
+     {
+      "description": "New value between 0.0 and 1.0",
+      "name": "value",
+      "required": true,
+      "type": 10
+     }
+    ],
+    "type": 1
+   },
+   {
+    "description": "Set the emoji that triggers link summarisation (default: \ud83d\udcf0)",
+    "name": "set_summary_emoji",
+    "options": [
+     {
+      "description": "The emoji to use for link summary reactions",
+      "name": "emoji",
+      "required": true,
+      "type": 3
+     }
+    ],
+    "type": 1
+   },
+   {
+    "description": "Manually set Boli Points for a user (for data restore)",
+    "name": "set_points",
+    "options": [
+     {
+      "description": "The member to update",
+      "name": "user",
+      "required": true,
+      "type": 6
+     },
+     {
+      "description": "Boli Points to set",
+      "name": "points",
+      "required": true,
+      "type": 4
+     },
+     {
+      "description": "Prediction count to set",
+      "name": "readings",
+      "required": false,
+      "type": 4
+     },
+     {
+      "description": "Rashi to assign (optional)",
+      "name": "rashi",
+      "required": false,
+      "type": 3
+     }
+    ],
+    "type": 1
+   },
+   {
+    "description": "Add or subtract Boli Points for a user",
+    "name": "adjust_points",
+    "options": [
+     {
+      "description": "The member to adjust points for",
+      "name": "user",
+      "required": true,
+      "type": 6
+     },
+     {
+      "choices": [
+       {
+        "name": "Add",
+        "value": "add"
+       },
+       {
+        "name": "Subtract",
+        "value": "subtract"
+       }
+      ],
+      "description": "Add or subtract points",
+      "name": "operation",
+      "required": true,
+      "type": 3
+     },
+     {
+      "description": "How many points (1\u201310000)",
+      "max_value": 10000,
+      "min_value": 1,
+      "name": "amount",
+      "required": true,
+      "type": 4
+     }
+    ],
+    "type": 1
+   },
+   {
+    "description": "Reset every user's strike count to 0",
+    "name": "reset_all_strikes",
+    "options": [],
+    "type": 1
+   },
+   {
+    "description": "View all active feature flags, probabilities, and cooldowns",
+    "name": "config_view",
+    "options": [],
+    "type": 1
+   },
+   {
+    "description": "Enable or disable Boli/XP awards from the partner bot API",
+    "name": "partner_toggle",
+    "options": [
+     {
+      "description": "True = awards ON, False = awards paused",
+      "name": "enabled",
+      "required": true,
+      "type": 5
+     }
+    ],
+    "type": 1
+   },
+   {
+    "description": "Reset today's attempt count for a user in a mini-game",
+    "name": "reset_game_attempts",
+    "options": [
+     {
+      "description": "The member whose attempts to reset",
+      "name": "user",
+      "required": true,
+      "type": 6
+     },
+     {
+      "choices": [
+       {
+        "name": "Gambling (all)",
+        "value": "gambling"
+       },
+       {
+        "name": "All Games",
+        "value": "all"
+       }
+      ],
+      "description": "Which game's daily count to clear",
+      "name": "game",
+      "required": true,
+      "type": 3
+     }
+    ],
+    "type": 1
+   }
+  ],
+  "type": 1
+ },
+ {
+  "contexts": null,
+  "default_member_permissions": 8192,
+  "description": "Audit a user's messages against server rules (Mods only)",
+  "dm_permission": true,
+  "integration_types": null,
+  "name": "audit",
+  "nsfw": false,
+  "options": [
+   {
+    "description": "The member to audit",
+    "name": "user",
+    "required": true,
+    "type": 6
+   },
+   {
+    "channel_types": [
+     0,
+     5
+    ],
+    "description": "Channel to fetch messages from (defaults to current channel)",
+    "name": "channel",
+    "required": false,
+    "type": 7
+   }
+  ],
+  "type": 1
+ },
+ {
+  "contexts": null,
+  "default_member_permissions": null,
+  "description": "Coin flip \u2014 bet Boli on heads or tails (1:1 payout)",
+  "dm_permission": true,
+  "integration_types": null,
+  "name": "flip",
+  "nsfw": false,
+  "options": [
+   {
+    "choices": [
+     {
+      "name": "Heads",
+      "value": "heads"
+     },
+     {
+      "name": "Tails",
+      "value": "tails"
+     }
+    ],
+    "description": "heads or tails",
+    "name": "choice",
+    "required": true,
+    "type": 3
+   },
+   {
+    "description": "How many Boli to wager",
+    "max_value": 50000,
+    "min_value": 1,
+    "name": "bet",
+    "required": true,
+    "type": 4
+   }
+  ],
+  "type": 1
+ },
+ {
+  "contexts": null,
+  "default_member_permissions": null,
+  "description": "Gift Boli points to another user. Omit recipient to surprise a random recent user!",
+  "dm_permission": true,
+  "integration_types": null,
+  "name": "gift",
+  "nsfw": false,
+  "options": [
+   {
+    "description": "How many Boli points to send",
+    "max_value": 10000,
+    "min_value": 1,
+    "name": "amount",
+    "required": true,
+    "type": 4
+   },
+   {
+    "description": "Who to gift points to (optional \u2014 omit for a random active user)",
+    "name": "recipient",
+    "required": false,
+    "type": 6
+   }
+  ],
+  "type": 1
+ },
+ {
+  "contexts": null,
+  "default_member_permissions": 8,
+  "description": "Navi system health (owner only)",
+  "dm_permission": true,
+  "integration_types": null,
+  "name": "health",
+  "nsfw": false,
+  "options": [],
+  "type": 1
+ },
+ {
+  "contexts": null,
+  "default_member_permissions": null,
+  "description": "Learn how to interact with Navi",
+  "dm_permission": true,
+  "integration_types": null,
+  "name": "help",
+  "nsfw": false,
+  "options": [],
+  "type": 1
+ },
+ {
+  "contexts": null,
+  "default_member_permissions": null,
+  "description": "Ping a missing member with a dramatic Missing Person notice",
+  "dm_permission": true,
+  "integration_types": null,
+  "name": "kanmanilla",
+  "nsfw": false,
+  "options": [
+   {
+    "description": "The member you're looking for",
+    "name": "user",
+    "required": true,
+    "type": 6
+   }
+  ],
+  "type": 1
+ },
+ {
+  "contexts": null,
+  "default_member_permissions": null,
+  "description": "Fun stats leaderboard: most cursed, most blessed, and richest",
+  "dm_permission": true,
+  "integration_types": null,
+  "name": "leaderboard",
+  "nsfw": false,
+  "options": [],
+  "type": 1
+ },
+ {
+  "contexts": null,
+  "default_member_permissions": 8,
+  "description": "Manually trigger the daily lucky draw (admin only)",
+  "dm_permission": true,
+  "integration_types": null,
+  "name": "lucky_draw",
+  "nsfw": false,
+  "options": [],
+  "type": 1
+ },
+ {
+  "contexts": null,
+  "default_member_permissions": null,
+  "description": "Boli Stock Market \u2014 buy and sell assets for profit",
+  "dm_permission": true,
+  "integration_types": null,
+  "name": "market",
+  "nsfw": false,
+  "options": [
+   {
+    "description": "Browse the Boli Stock Market",
+    "name": "view",
+    "options": [],
+    "type": 1
+   },
+   {
+    "description": "Buy a market item with Boli points",
+    "name": "buy",
+    "options": [
+     {
+      "autocomplete": true,
+      "description": "Item to buy",
+      "name": "item_id",
+      "required": true,
+      "type": 3
+     },
+     {
+      "description": "How many to buy (1\u201310)",
+      "max_value": 10,
+      "min_value": 1,
+      "name": "quantity",
+      "required": false,
+      "type": 4
+     }
+    ],
+    "type": 1
+   },
+   {
+    "description": "Sell a market item from your holdings",
+    "name": "sell",
+    "options": [
+     {
+      "autocomplete": true,
+      "description": "Item to sell",
+      "name": "item_id",
+      "required": true,
+      "type": 3
+     },
+     {
+      "description": "How many to sell",
+      "max_value": 100,
+      "min_value": 1,
+      "name": "quantity",
+      "required": false,
+      "type": 4
+     }
+    ],
+    "type": 1
+   },
+   {
+    "description": "View your current market holdings",
+    "name": "holdings",
+    "options": [],
+    "type": 1
+   },
+   {
+    "description": "See price history chart for an item (last 48 data points)",
+    "name": "history",
+    "options": [
+     {
+      "autocomplete": true,
+      "description": "Item to inspect (use ID from /market view)",
+      "name": "item_id",
+      "required": true,
+      "type": 3
+     }
+    ],
+    "type": 1
+   }
+  ],
+  "type": 1
+ },
+ {
+  "contexts": null,
+  "default_member_permissions": 8192,
+  "description": "Summarise the current thread for moderators (Mods only)",
+  "dm_permission": true,
+  "integration_types": null,
+  "name": "mod_tldr",
+  "nsfw": false,
+  "options": [],
+  "type": 1
+ },
+ {
+  "contexts": null,
+  "default_member_permissions": null,
+  "description": "List your saved local media shortcuts",
+  "dm_permission": true,
+  "integration_types": null,
+  "name": "my_media",
+  "nsfw": false,
+  "options": [],
+  "type": 1
+ },
+ {
+  "contexts": null,
+  "default_member_permissions": null,
+  "description": "Check your own Boli Points and Rashi",
+  "dm_permission": true,
+  "integration_types": null,
+  "name": "mypoints",
+  "nsfw": false,
+  "options": [],
+  "type": 1
+ },
+ {
+  "contexts": null,
+  "default_member_permissions": null,
+  "description": "Get a Navi prediction",
+  "dm_permission": true,
+  "integration_types": null,
+  "name": "navi",
+  "nsfw": false,
+  "options": [
+   {
+    "description": "\u2026",
+    "name": "user",
+    "required": false,
+    "type": 6
+   }
+  ],
+  "type": 1
+ },
+ {
+  "contexts": null,
+  "default_member_permissions": null,
+  "description": "Check if Navi is awake",
+  "dm_permission": true,
+  "integration_types": null,
+  "name": "ping",
+  "nsfw": false,
+  "options": [],
+  "type": 1
+ },
+ {
+  "contexts": null,
+  "default_member_permissions": null,
+  "description": "See the Boli Points leaderboard",
+  "dm_permission": true,
+  "integration_types": null,
+  "name": "rank",
+  "nsfw": false,
+  "options": [
+   {
+    "description": "Page number (10 entries per page, default 1)",
+    "name": "page",
+    "required": false,
+    "type": 4
+   }
+  ],
+  "type": 1
+ },
+ {
+  "contexts": null,
+  "default_member_permissions": null,
+  "description": "Roll two dice \u2014 bet on over/under/exact 7, or call a specific sum",
+  "dm_permission": true,
+  "integration_types": null,
+  "name": "roll_dice",
+  "nsfw": false,
+  "options": [
+   {
+    "choices": [
+     {
+      "name": "Over 7 (1:1 payout)",
+      "value": "over7"
+     },
+     {
+      "name": "Under 7 (1:1 payout)",
+      "value": "under7"
+     },
+     {
+      "name": "Exact 7 (4:1 payout)",
+      "value": "exact7"
+     },
+     {
+      "name": "Exact 2 \u2014 35:1 payout",
+      "value": "2"
+     },
+     {
+      "name": "Exact 3 \u2014 17:1 payout",
+      "value": "3"
+     },
+     {
+      "name": "Exact 4 \u2014 11:1 payout",
+      "value": "4"
+     },
+     {
+      "name": "Exact 5 \u2014 8:1 payout",
+      "value": "5"
+     },
+     {
+      "name": "Exact 6 \u2014 6:1 payout",
+      "value": "6"
+     },
+     {
+      "name": "Exact 8 \u2014 6:1 payout",
+      "value": "8"
+     },
+     {
+      "name": "Exact 9 \u2014 8:1 payout",
+      "value": "9"
+     },
+     {
+      "name": "Exact 10 \u2014 11:1 payout",
+      "value": "10"
+     },
+     {
+      "name": "Exact 11 \u2014 17:1 payout",
+      "value": "11"
+     },
+     {
+      "name": "Exact 12 \u2014 35:1 payout",
+      "value": "12"
+     }
+    ],
+    "description": "Your prediction",
+    "name": "bet_type",
+    "required": true,
+    "type": 3
+   },
+   {
+    "description": "How many Boli to wager",
+    "max_value": 50000,
+    "min_value": 1,
+    "name": "bet",
+    "required": true,
+    "type": 4
+   }
+  ],
+  "type": 1
+ },
+ {
+  "contexts": null,
+  "default_member_permissions": null,
+  "description": "Space roulette \u2014 color (1:1), dozen (2:1), odd/even (1:1), or number 1-36 (35:1)",
+  "dm_permission": true,
+  "integration_types": null,
+  "name": "roulette",
+  "nsfw": false,
+  "options": [
+   {
+    "autocomplete": true,
+    "description": "Pick a bet type or type a number 1-36",
+    "name": "choice",
+    "required": true,
+    "type": 3
+   },
+   {
+    "description": "How many Boli to wager",
+    "max_value": 50000,
+    "min_value": 1,
+    "name": "bet",
+    "required": true,
+    "type": 4
+   }
+  ],
+  "type": 1
+ },
+ {
+  "contexts": null,
+  "default_member_permissions": null,
+  "description": "Boli Marketplace \u2014 spend Boli Points on cosmic perks",
+  "dm_permission": true,
+  "integration_types": null,
+  "name": "shop",
+  "nsfw": false,
+  "options": [
+   {
+    "description": "Browse available items in the Boli Marketplace",
+    "name": "view",
+    "options": [],
+    "type": 1
+   },
+   {
+    "description": "Purchase an item from the Boli Marketplace",
+    "name": "buy",
+    "options": [
+     {
+      "choices": [
+       {
+        "name": "\ud83d\udee1\ufe0f Curse Protection (20 pts)",
+        "value": "curse_protection"
+       },
+       {
+        "name": "\ud83c\udf1f Customize Rashi (40 pts)",
+        "value": "custom_rashi"
+       },
+       {
+        "name": "\ud83d\udd0b 10x Cosmic Actions Refill (30 pts)",
+        "value": "action_refill"
+       },
+       {
+        "name": "\ud83d\udd2e Deflector Shield (15 pts)",
+        "value": "deflector_shield"
+       },
+       {
+        "name": "\ud83d\udeab Timeout Ticket (25 pts)",
+        "value": "timeout_ticket"
+       },
+       {
+        "name": "\u26a1 Multiplier Potion (35 pts)",
+        "value": "multiplier_potion"
+       }
+      ],
+      "description": "Which item to buy",
+      "name": "item",
+      "required": true,
+      "type": 3
+     },
+     {
+      "description": "Your chosen Rashi (only for custom_rashi)",
+      "name": "rashi_choice",
+      "required": false,
+      "type": 3
+     },
+     {
+      "description": "Target user (only for timeout_ticket)",
+      "name": "target",
+      "required": false,
+      "type": 6
+     }
+    ],
+    "type": 1
+   }
+  ],
+  "type": 1
+ },
+ {
+  "contexts": null,
+  "default_member_permissions": null,
+  "description": "Spin the cosmic slot machine \u2014 first 2 match 2:1, 3-match 10:1, jackpot 50:1",
+  "dm_permission": true,
+  "integration_types": null,
+  "name": "slots",
+  "nsfw": false,
+  "options": [
+   {
+    "description": "How many Boli to wager",
+    "max_value": 50000,
+    "min_value": 1,
+    "name": "bet",
+    "required": true,
+    "type": 4
+   }
+  ],
+  "type": 1
+ },
+ {
+  "contexts": null,
+  "default_member_permissions": 8192,
+  "description": "Issue a manual strike to a user (Moderators only)",
+  "dm_permission": true,
+  "integration_types": null,
+  "name": "strike",
+  "nsfw": false,
+  "options": [
+   {
+    "description": "The member to strike",
+    "name": "user",
+    "required": true,
+    "type": 6
+   },
+   {
+    "description": "Why you're issuing the strike",
+    "name": "reason",
+    "required": false,
+    "type": 3
+   }
+  ],
+  "type": 1
+ },
+ {
+  "contexts": null,
+  "default_member_permissions": null,
+  "description": "Get a factual summary of recent chat",
+  "dm_permission": true,
+  "integration_types": null,
+  "name": "summ",
+  "nsfw": false,
+  "options": [
+   {
+    "description": "Number of messages to summarise (1\u2013100)",
+    "max_value": 100,
+    "min_value": 1,
+    "name": "limit",
+    "required": false,
+    "type": 4
+   },
+   {
+    "description": "Only include messages from this user (optional)",
+    "name": "user1",
+    "required": false,
+    "type": 6
+   },
+   {
+    "description": "Also include messages from this user (optional)",
+    "name": "user2",
+    "required": false,
+    "type": 6
+   },
+   {
+    "description": "Show summary to everyone? (default: only me)",
+    "name": "public",
+    "required": false,
+    "type": 5
+   }
+  ],
+  "type": 1
+ },
+ {
+  "contexts": null,
+  "default_member_permissions": null,
+  "description": "Create a temporary voice channel that self-destructs after 30 minutes",
+  "dm_permission": true,
+  "integration_types": null,
+  "name": "temp_vc",
+  "nsfw": false,
+  "options": [
+   {
+    "description": "Name for the voice channel",
+    "name": "name",
+    "required": true,
+    "type": 3
+   },
+   {
+    "description": "Max users allowed (2\u201399)",
+    "max_value": 99,
+    "min_value": 2,
+    "name": "capacity",
+    "required": true,
+    "type": 4
+   }
+  ],
+  "type": 1
+ },
+ {
+  "contexts": null,
+  "default_member_permissions": null,
+  "dm_permission": true,
+  "integration_types": null,
+  "name": "Reply with Emoji",
+  "nsfw": false,
+  "type": 3
+ },
+ {
+  "contexts": null,
+  "default_member_permissions": null,
+  "dm_permission": true,
+  "integration_types": null,
+  "name": "Reply with Sticker",
+  "nsfw": false,
+  "type": 3
+ },
+ {
+  "contexts": null,
+  "default_member_permissions": null,
+  "dm_permission": true,
+  "integration_types": null,
+  "name": "Save Emoji/Sticker",
+  "nsfw": false,
+  "type": 3
+ }
+]

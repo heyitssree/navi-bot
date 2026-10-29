@@ -1,12 +1,12 @@
 """Importing any module must not connect to Discord or call an LLM."""
 import importlib
+import pkgutil
 
 import pytest
 
-MODULES = [
-    "schema", "prompts", "glossary", "curse_data", "slang_scorer", "template_resolver",
-    "market_engine", "api_server", "services.api_manager", "services.gemini_service", "bot",
-]
+import navi
+
+MODULES = sorted(m.name for m in pkgutil.walk_packages(navi.__path__, "navi.") if m.name != "navi.__main__")
 
 
 @pytest.mark.parametrize("name", MODULES)
@@ -20,10 +20,11 @@ def test_import_has_no_side_effects(name, monkeypatch):
     importlib.import_module(name)
 
 
-def test_bot_not_connected_after_import():
-    import bot
+def test_build_does_not_connect_or_open_db():
+    from navi.app import build
+    from tests.legacy.harness import make_config
 
-    assert bot.db_conn is None
-    assert bot.api_mgr is None
-    assert bot.bot.is_closed() is False
-    assert bot.bot.user is None  # never logged in
+    bot, ctx = build(make_config())
+    assert ctx.db is None and ctx.llm is None
+    assert bot.user is None  # never logged in
+    assert bot.ctx is ctx

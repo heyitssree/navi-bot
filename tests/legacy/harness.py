@@ -1,8 +1,12 @@
-"""Helpers that drive bot.on_message with fake Discord objects against a temp DB."""
+"""Helpers that drive the pipeline / cogs with fake Discord objects against a temp DB."""
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
 import discord
+
+from navi.config import Config
+from navi.context import AppContext
+from navi.settings.store import FeatureFlags
 
 BOT_ID = 999
 
@@ -37,18 +41,32 @@ def make_message(author, content, mentions=(), reference_author=None):
     return msg
 
 
-def install(navi, monkeypatch, db):
-    """Point the bot module at the temp DB with a fake client user."""
-    fake_client = SimpleNamespace(user=SimpleNamespace(id=BOT_ID, mentioned_in=lambda m: False))
-    monkeypatch.setattr(navi, "bot", fake_client)
-    monkeypatch.setattr(navi, "db_conn", db)
-    monkeypatch.setattr(navi, "_seen_users", set())
-    monkeypatch.setattr(navi, "_feature_cache", dict(navi._FEATURE_DEFAULTS))
+def make_config(**kw):
+    base = dict(discord_token=None, free_api_key=None, paid_api_key=None, llm_model=None, free_tier_mode=True,
+                general_channel="general", mod_channel_name="mod-log", owner_id=None, guild_id=None, partner_port=8080)
+    base.update(kw)
+    return Config(**base)
 
 
-def seed(db, schema, *users):
+def make_ctx(db, llm=None, **cfg):
+    """An AppContext wired to a temp DB and a fake Discord client (user id BOT_ID)."""
+    bot = SimpleNamespace(
+        user=SimpleNamespace(id=BOT_ID, mentioned_in=lambda m: False),
+        application_info=AsyncMock(),
+    )
+    ctx = AppContext(bot=bot, config=make_config(**cfg), settings=FeatureFlags())
+    ctx.db = db
+    ctx.settings.bind(db)
+    ctx.llm = llm
+    bot.ctx = ctx
+    return ctx
+
+
+def seed(db, *users):
+    from navi.db.repos.users import upsert_user
+
     for u in users:
-        schema.upsert_user(db, u.id, u.display_name)
+        upsert_user(db, u.id, u.display_name)
 
 
 def points(db, uid):
@@ -57,3 +75,25 @@ def points(db, uid):
 
 def xp(db, uid):
     return db.execute("SELECT experience FROM user_stats WHERE user_id=?", [uid]).fetchone()[0]
+
+
+class FakeLLM:
+    """Stands in for LLMRouter: records requests, returns canned text."""
+
+    free_only = False
+
+    def __init__(self, text="LLM says hi", from_cache=False, pool="POOL"):
+        self.requests, self.cache_only_calls = [], []
+        self.text, self.from_cache, self.pool = text, from_cache, pool
+
+    async def generate(self, req, *, fallback, name="", cache_type=None, curse_used=None, user_id=None, cacheable=None):
+        from navi.llm.router import RouterResult
+
+        self.requests.append(dict(req=req, fallback=fallback, name=name, cache_type=cache_type, curse_used=curse_used))
+        return RouterResult(self.text, self.from_cache, "ok")
+
+    async def cache_only(self, cache_type, name, fallback, curse_used=None):
+        from navi.llm.router import RouterResult
+
+        self.cache_only_calls.append(dict(cache_type=cache_type, name=name))
+        return RouterResult(self.pool, True, "cache")

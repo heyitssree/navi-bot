@@ -4,11 +4,11 @@ import sqlite3
 from dotenv import load_dotenv
 load_dotenv()
 
-# Add parent directory to path so we can import schema.py
+# Add parent directory to path so we can import navi.db
 parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, parent_dir)
 
-import schema
+from navi.db import connection as schema
 
 try:
     import duckdb
@@ -54,7 +54,7 @@ def migrate():
     print(f"Moving {duck_path} -> {backup_path}")
     os.rename(duck_path, backup_path)
     
-    # Let schema.py create the empty SQLite DB with perfect schemas
+    # Let navi.db create the empty SQLite DB with perfect schemas
     print(f"Creating fresh SQLite database at {duck_path}...")
     os.environ["DB_PATH"] = duck_path
     sql_conn = schema.init_db()
