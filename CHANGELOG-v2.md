@@ -13,7 +13,7 @@ github.com/heyitssree/navi-bot, and `git reset origin/main` showed zero differen
   `points_for_level`/`get_level_from_points`, `get_navi_prediction` routing (1st/2nd/3rd+), `/summ` filtering,
   market price bounds, and an import smoke test (no network, no Discord login, no LLM call).
 - `tools/db_report.py` (read-only row counts and aggregates).
-- Dev setup: `data/dev/navi_dev.db` (SQLite backup of `data/navi.db`) and an uncommitted `.env.dev` with `DB_PATH`.
+- Dev setup: `data/dev/navi_dev.db` (SQLite backup of `data/navi.db`) and `DB_PATH=data/dev/navi_dev.db` set in the (uncommitted) `.env` itself.
   `.gitignore` now also covers `.env.*`, `*.db`, `data/dev/`, `data/local_media/`, `data/backups/`.
 
 ### Baseline report (`python -m tools.db_report`, dev copy)
@@ -34,5 +34,5 @@ Note: the copy of the database is small, so these are not production-scale numbe
 - `pottan` is both a curse trigger and a Boli trigger word (unchanged, per spec).
 
 ### Not verified in this phase
-- "Confirm the bot starts against the copy in the test server": needs a Discord token for the test bot in `.env.dev`;
+- "Confirm the bot starts against the copy in the test server": needs a Discord token for the test bot in `.env`;
   not done here. Everything else in the gate was run locally.
