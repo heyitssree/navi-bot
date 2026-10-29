@@ -3,7 +3,7 @@ import pytest
 
 import bot as navi
 import schema
-from curses import CURSE_WORDS, COMPLIMENTS
+from curse_data import CURSE_WORDS, COMPLIMENTS
 from tests.legacy.harness import FakeUser, install, make_message, points, seed, xp
 
 CASTER = FakeUser(1, "caster")

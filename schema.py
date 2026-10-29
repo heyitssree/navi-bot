@@ -408,16 +408,6 @@ def _create_tables(conn: sqlite3.Connection) -> None:
         SELECT 'curse_reply_chance', 0.25
         WHERE NOT EXISTS (SELECT 1 FROM bot_config WHERE key = 'curse_reply_chance');
     """)
-    conn.execute("""
-        INSERT INTO bot_config (key, value_float)
-        SELECT 'reversal_chance_owner', 0.45
-        WHERE NOT EXISTS (SELECT 1 FROM bot_config WHERE key = 'reversal_chance_owner');
-    """)
-    conn.execute("""
-        INSERT INTO bot_config (key, value_str)
-        SELECT 'WEATHER_ALERT_TIME', '07:00'
-        WHERE NOT EXISTS (SELECT 1 FROM bot_config WHERE key = 'WEATHER_ALERT_TIME');
-    """)
     # Feature on/off flags (1 = enabled, 0 = disabled)
     for flag in (
         "feature_kochi_replies", "feature_curse_replies", "feature_boli_points",
@@ -663,6 +653,27 @@ def upsert_user(
     _db_write(_write)
 
 
+def bulk_update_last_seen(conn: sqlite3.Connection, seen: dict[int, str]) -> int:
+    """Write many last_seen timestamps (UTC 'YYYY-MM-DD HH:MM:SS') in one executemany. Returns rows given."""
+    if not seen:
+        return 0
+    rows = [(ts, uid) for uid, ts in seen.items()]
+    _db_write(lambda: (
+        conn.executemany("UPDATE user_stats SET last_seen = ? WHERE user_id = ?", rows),
+        conn.commit(),
+    ))
+    return len(rows)
+
+
+def get_last_seen(conn: sqlite3.Connection, user_id: int) -> str | None:
+    """Return the stored last_seen text for a user, or None when the user has no record."""
+    row = conn.execute("SELECT last_seen FROM user_stats WHERE user_id = ?", [user_id]).fetchone()
+    if not row or not row[0]:
+        return None
+    val = row[0]  # PARSE_DECLTYPES turns TIMESTAMP columns into datetime objects
+    return val.strftime("%Y-%m-%d %H:%M:%S") if isinstance(val, datetime) else str(val)
+
+
 def update_boli_points(
     conn: sqlite3.Connection,
     user_id: int,
@@ -818,47 +829,6 @@ def log_curse(
             """,
             [user_id, username, curse_used],
         )
-        conn.commit()
-    _db_write(_write)
-
-
-# ---------------------------------------------------------------------------
-# Daily omens
-# ---------------------------------------------------------------------------
-
-def get_todays_omen(conn: sqlite3.Connection) -> str | None:
-    """Return today's cached omen text, or None if not yet generated."""
-    row = conn.execute(
-        "SELECT generated_text FROM daily_omens WHERE omen_date = ?",
-        [date.today()],
-    ).fetchone()
-    return row[0] if row else None
-
-
-def save_daily_omen(
-    conn: sqlite3.Connection,
-    text: str,
-    landmark: str,
-) -> None:
-    today = date.today()
-    existing = conn.execute(
-        "SELECT id FROM daily_omens WHERE omen_date = ?", [today]
-    ).fetchone()
-
-    def _write() -> None:
-        if existing:
-            conn.execute(
-                "UPDATE daily_omens SET generated_text=?, landmark=? WHERE omen_date=?",
-                [text, landmark, today],
-            )
-        else:
-            conn.execute(
-                """
-                INSERT INTO daily_omens (id, generated_text, landmark, omen_date)
-                VALUES (NULL, ?, ?, ?)
-                """,
-                [text, landmark, today],
-            )
         conn.commit()
     _db_write(_write)
 

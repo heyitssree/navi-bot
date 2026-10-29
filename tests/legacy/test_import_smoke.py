@@ -4,7 +4,7 @@ import importlib
 import pytest
 
 MODULES = [
-    "schema", "prompts", "glossary", "curses", "slang_scorer", "template_resolver",
+    "schema", "prompts", "glossary", "curse_data", "slang_scorer", "template_resolver",
     "market_engine", "api_server", "services.api_manager", "services.gemini_service", "bot",
 ]
 

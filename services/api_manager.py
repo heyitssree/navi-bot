@@ -61,8 +61,12 @@ class ApiManager:
         name: str,
         curse_used: str | None = None,
         fallback_message: str = "Navi-nte glow went off. KSEB took the current. Even fairies need electricity mone. Try again.",
+        cacheable: bool = False,
     ) -> tuple[str, bool]:
         """Get a Gemini response, respecting rate limits and circuit state.
+
+        cacheable: only /navi predictions may fall back to the cached template pool.
+        Every other purpose gets its own fallback_message, never unrelated cached text.
 
         Returns:
             (response_text, is_from_cache): text and whether it came from cache.
@@ -76,12 +80,12 @@ class ApiManager:
                 self._request_count,
                 self.rpm_limit,
             )
-            cached = self._serve_cache(cache_type, name, curse_used)
+            cached = self._serve_cache(cache_type, name, curse_used) if cacheable else None
             return (cached or fallback_message, True)
 
         # Circuit open — go to cache
         if self._gemini.is_circuit_open:
-            cached = self._serve_cache(cache_type, name, curse_used)
+            cached = self._serve_cache(cache_type, name, curse_used) if cacheable else None
             return (cached or fallback_message, True)
 
         # Increment window counter before calling
@@ -91,8 +95,8 @@ class ApiManager:
         result = self._gemini.call(prompt, system_prompt)
 
         if result is None:
-            # GeminiService returned None → both keys failed
-            cached = self._serve_cache(cache_type, name, curse_used)
+            # GeminiService returned None → no key could answer
+            cached = self._serve_cache(cache_type, name, curse_used) if cacheable else None
             return (cached or fallback_message, True)
 
         return (result, False)

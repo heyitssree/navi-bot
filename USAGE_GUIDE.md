@@ -63,7 +63,7 @@ Shows:
 - Which Gemini key is active (`free` or `paid`)
 - Circuit breaker state (OPEN 🔴 / CLOSED 🟢)
 - Rate limiter: how many of the 10 RPM you've used this minute
-- DuckDB row counts per table
+- SQLite row counts per table
 - Bot uptime
 
 ---
@@ -153,20 +153,6 @@ Navi's mood shifts throughout the day:
 
 ---
 
-## 📅 Daily Omen + Weather Briefing
-
-Every day at **7:00 AM IST**, Navi posts a combined weather report and city-wide omen to `#off-topic`.
-
-**What it contains:**
-- Real Trivandrum weather for the day (temperature, rain forecast) — fetched live from Open-Meteo
-- An absurd astrology prediction for the whole city woven around the weather
-- A Trivandrum landmark as the day's "focal point"
-
-**Example:**
-> *"Namaskaram Thirontharam! Today: 34°C scorching sun, zero rain — basically Thampanoor is a tandoor oven. The stars say if you are near Chalai Market by noon, your chappal will melt and your mood also. Drink buttermilk, not opinions. Shokam day ahead. — Navi"*
-
----
-
 ## Admin Controls
 
 These work by typing in chat (no slash command needed). Owner only.
@@ -199,5 +185,4 @@ Every Gemini call:
 
 - **Check `/mypoints` after chatting** — you'll often have points you didn't notice earning
 - **The more people use Trivandrum words, the richer the leaderboard** — `/rank` is more fun with a full server
-- **The 7 AM post is the highlight** — check `#off-topic` every morning for the omen
 - **Tag Navi with weird questions** — the more absurd the question, the better the sarcastic answer

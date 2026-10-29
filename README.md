@@ -1,288 +1,102 @@
 # Navi - Trivandrum's Own Astrologer Bot
 
-A dramatic, self-important astrologer bot from Trivandrum, Kerala that speaks in Trivandrum Manglish slang.
-
----
-
-## Table of Contents
-
-- [Features](#features)
-- [Bot Personality](#bot-personality)
-- [Trivandrum Manglish Glossary](#trivandrum-manglish-glossary)
-- [Quick Start](#quick-start)
-- [Configuration](#configuration)
-- [Commands](#commands)
-- [Passive Behavior](#passive-behavior)
-- [Deployment](#deployment)
-- [Environment Variables](#environment-variables)
-- [File Structure](#file-structure)
-- [Troubleshooting](#troubleshooting)
-
----
+A Discord bot for a Trivandrum / Kerala community server. Navi is a dramatic, self-important astrologer who speaks
+Trivandrum Manglish, runs a points-and-curses game, a stock market and a shop, and a few mini-games. Powered by Google
+Gemini for the chatty parts; the curse/bless game itself uses no AI.
 
 ## Features
 
-### 1. On-demand Predictions
-Trigger: `navi <name>`
+**Predictions and chat**
+- `/navi` - daily astrology reading with a Rashi per user. Repeat calls within a minute are served from cache.
+- @mention Navi to ask a question (Q&A in persona).
+- Passive curse reply: when a message contains a curse-list word there is a chance (default 25%) Navi answers and awards +1 Boli.
+- Kochi-slang detection: a chance (default 28%) of a condescending Thirontharam reply.
+- Vibe check: if a channel turns heated (all-caps, severe words) Navi posts a calming message.
+- Link summaries (react with the summary emoji, default 📰), `/summ` (chat summary), `/kanmanilla` (missing-member notice).
+- Moderation: `/audit`, `/mod_tldr`, `/strike`, and a 3-strike system for severe curse words.
+- Welcome messages for new members and `/temp_vc` temporary voice channels.
 
-Get a fake, dramatic astrology reading for any person — written in Trivandrum Manglish slang, funny, and slightly ominous.
+**Curse and bless game (no AI)**
+- `navi @user`, `navi` as a reply, or bare `navi` (self-curse) pick a random curse from three tiers (Mild / Moderate / Severe)
+  with a tier backfire chance (default 10 / 15 / 20%). Curse Protection and Deflector Shield always bounce it back.
+- `chunk @user` (or as a reply / alone) blesses with a random compliment, a caster share and a 5% universal blessing.
+- 20 cosmic actions per day (refills via the shop).
 
-### 2. Passive Curse Replies
-The bot listens to ALL messages in the server. If a message contains any word from the curse word list (case-insensitive), there is a **20% chance** the bot fires back with either:
-- A curse back at the user (in a dramatic jyothishi voice)
-- A short "doomed future" prediction for that user specifically
+**Economy**
+- Boli Points and XP for local slang (TVM words add, Kochi words subtract), levels with titles, `/mypoints`, `/rank`, `/leaderboard`.
+- `/market` - the Boli Stock Market (`view`, `buy`, `sell`, `holdings`, `history`); prices move hourly.
+- `/shop` - perks and refills; `/gift` - gift Boli; daily lucky draw (7:00 AM IST, `/lucky_draw` for admins).
+- Gambling: `/flip`, `/roll_dice`, `/roulette`, `/slots`.
+- Local media shortcuts: save an emoji or sticker and post it with `;;name` (`/my_media`).
+- `/navi_challenge` and `/type_race` exist but are disabled by default.
 
----
+**Admin** (`/admin ...`): kill switch, feature toggles, probabilities, cooldowns, testing mode, point adjustments, config view.
+`/health` (owner) shows uptime, active model and key, circuit state and table counts.
 
-## Bot Personality
+**Partner API**: a small FastAPI server (port `API_SERVER_PORT`, default 8080) lets a partner bot award Boli points.
 
-> You are Navi, an ancient and dramatically self-important astrologer from Trivandrum, Kerala. You speak in Trivandrum Manglish — a mix of Malayalam words and English, written in English script.
-
-**Core Traits:**
-- Takes predictions extremely seriously even when they are completely absurd
-- Has mild contempt for people from outside Thirontharam
-- Occasionally invokes Lord Padmanabha for gravitas
-- Is suspicious of people who don't know what Boli and Paal Payasam is
-- Keeps replies under 5 sentences
-- Never breaks character
-
----
-
-## Trivandrum Manglish Glossary
-
-### Expressions
-| Expression | Meaning |
-|------------|---------|
-| Eda / Edi | Informal "hey" (used among friends) |
-| Aiyo | Exclamation of shock/disappointment |
-| Shokam | Sad, boring, or pathetic situation |
-| Kili poyi | "The bird flew away" — confused/shocked |
-| Chumma | Simply, for no reason |
-| Oola | Useless, pathetic, poor quality |
-| Kidilam / Kidu | Absolutely awesome or fantastic |
-| Vayye? | "Are you not well?" (often sarcastic) |
-| Pillacha | Respectful address for older man |
-| Thirontharam | Local pronunciation of Thiruvananthapuram |
-
-### Landmarks
-Palayam, Thampanoor, KD Puram, Vellayambalam, Kowdiar, Chalai Market, Ponmudi, Sreekaryam, Kazhakkoottam, Museum Campus, Technopark
-
-### Food & Eateries
-- Boli and Paal Payasam (the crown jewel of Trivandrum Sadya)
-- Kethel's Chicken (Rahmaniya)
-- Zam Zam Palayam
-- Indian Coffee House Thampanoor
-- Sree Muruka Cafe (Pazham Pori + Beef Roast)
-
-### Culture
-- IFFK (International Film Festival of Kerala)
-- Attukal Pongala
-- Tagore Theatre
-- Ramachandran Textiles East Fort
-- Evening chaya at thattukada
-
----
-
-## Quick Start
-
-### 1. Clone & Install
+## Quick start
 
 ```bash
-# Navigate to project directory
-cd navi-bot
-
-# Install dependencies
+python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-```
-
-### 2. Configure Environment
-
-```bash
-# Copy the example env file
-copy .env.example .env
-```
-
-Edit `.env` with your keys. See [SETUP.md](SETUP.md) for where to find each value.
-
-### 3. Run Locally
-
-```bash
+cp .env.example .env     # then fill it in; see SETUP.md
 python bot.py
 ```
 
-### 4. Invite Bot to Discord
+Invite the bot with the `bot` and `applications.commands` scopes and enable the Message Content, Server Members and
+Presence intents in the Discord Developer Portal.
 
-1. Go to [Discord Developer Portal](https://discord.com/developers/applications)
-2. Select your application > OAuth2 > URL Generator
-3. Select `bot` scope
-4. Select permissions: `Send Messages`, `Read Message History`, `Use Slash Commands`
-5. Use the generated URL to invite the bot
+## Environment variables
 
----
+| Variable | Purpose |
+|---|---|
+| `DISCORD_TOKEN` | Discord bot token (required) |
+| `GEMINI_API_KEY_FREE` | Gemini key tried first (free tier) |
+| `GEMINI_API_KEY_PAID` | Gemini key used when the free key fails or is rate limited. At least one key is required |
+| `LLM_MODEL` | Gemini model, default `gemini-3.5-flash-lite` (falls back to `gemini-3.8-flash` if the key cannot use it) |
+| `DB_PATH` | SQLite file, default `data/navi.db` |
+| `OWNER_ID`, `GUILD_ID` | Owner and server IDs |
+| `FREE_TIER_MODE` | `true` to be frugal with API calls |
+| `GENERAL_CHANNEL`, `MOD_CHANNEL_NAME` | Channel names the bot uses |
+| `PARTNER_BOT_API_KEY`, `API_SERVER_PORT` | Partner API bearer key and port |
+| `BOT_INTERNAL_SECRET` | Shared secret for `/internal/boli/award` |
 
-## Configuration
+## How AI errors are handled
 
-### Environment Variables
+- Rate limited (429): that key cools down for the server's suggested delay (20 s if none). This never trips the circuit breaker.
+- Configuration (400/401/403/404, e.g. bad key or missing model): logged at most every 10 minutes, the owner gets at most one DM an hour, and the breaker opens immediately.
+- Server errors and timeouts: 3 in a row open the breaker for 5 minutes, then one probe call decides whether it closes.
+- Only `/navi` predictions fall back to the cached template pool; every other feature uses its own fallback text.
 
-| Variable | Description | Where to Get |
-|----------|-------------|--------------|
-| `DISCORD_TOKEN` | Your Discord bot token | Discord Developer Portal > Applications > Your Bot > Token |
-| `GEMINI_API_KEY` | Google Gemini API key | [Google AI Studio](https://aistudio.google.com/app/apikey) |
-
-### Tuning Parameters
-
-In `bot.py`, you can adjust:
-
-```python
-CURSE_REPLY_CHANCE = 0.20  # 20% chance to reply to curse words
-BOT_PREFIX = "."            # Command prefix
-```
-
----
-
-## Commands
-
-### Prefix Command
-```
-navi <name>
-```
-
-**Examples:**
-```
-navi Arjun
-navi
-```
-
-- If no name is provided, uses the message author's display name
-- Works as both prefix command (`navi`) and slash command (`/navi`)
-
-### Slash Command
-```
-/navi [name]
-```
-
-Same behavior as prefix command.
-
----
-
-## Passive Behavior
-
-### Trigger Conditions
-- Message contains any word from the curse word list (case-insensitive)
-- Message is not from a bot
-- Message is not from Navi itself
-
-### Response Types (50/50 random)
-
-**Type 1: Curse Back**
-> "Aiyo Arjun, nee oru Pottan aanu. Ponmudi mist-pole ninte future also unclear. Kili poyi!"
-
-**Type 2: Doomed Prediction**
-> "Eda Arjun, ninte stars say you will get stuck in KD Puram traffic for 45 minutes on a Tuesday with no charge in your phone. Chumma vayadi ayikko."
-
-### Timing
-- 1–2 second typing delay before reply (for dramatic effect)
-- 20% probability of firing back
-
----
-
-## Deployment
-
-### Railway (Recommended)
-
-1. **Push to GitHub**
-   ```bash
-   git add .
-   git commit -m "Initial commit"
-   git push origin main
-   ```
-
-2. **Set up Railway**
-   - Go to [Railway](https://railway.app) and sign up
-   - Create new project from GitHub repo
-   - Add environment variables in Railway dashboard:
-     - `DISCORD_TOKEN` = your Discord bot token
-     - `GEMINI_API_KEY` = your Gemini API key
-
-3. **Deploy**
-   - Railway automatically detects `Procfile` and deploys
-   - Bot runs with `worker: python bot.py`
-
-### Other Platforms
-
-The bot can run on any platform that supports Python 3.11+:
-- Heroku (use `worker: python bot.py` in Procfile)
-- DigitalOcean App Platform
-- Self-hosted VPS
-
----
-
-## File Structure
+## Layout
 
 ```
-navi-bot/
-├── bot.py           # Main bot logic (commands + passive replies)
-├── prompts.py       # Gemini system prompts & message templates
-├── curses.py        # Curse word triggers & passive reply templates
-├── glossary.py      # Trivandrum slang, landmarks, food, culture
-├── requirements.txt # Python dependencies
-├── .env.example     # Template for environment variables
-├── .env             # Your actual API keys (not committed)
-├── Procfile         # Railway deployment config
-└── README.md        # This file
+bot.py                 # commands, events, background loops
+schema.py              # SQLite schema, migrations and queries
+prompts.py             # Gemini prompts
+curse_data.py          # curse / compliment / Boli / Kochi word lists and matchers
+glossary.py            # Trivandrum slang, landmarks, food, culture
+slang_scorer.py  template_resolver.py  market_engine.py  api_server.py
+services/              # gemini_service.py (keys, errors, breaker), api_manager.py (rate limit, cache)
+data/                  # slang_data.json, templates.json (database and media are not committed)
+tools/                 # maintenance scripts (db_report.py, recovery and import helpers)
+tests/legacy/          # characterisation tests: pytest
 ```
 
----
+## Development
 
-## Example Exchanges
-
-### navi Command
-```
-User: navi Arjun
-Navi: "Eda Arjun, Chandra is sitting in the 7th house like a KSRTC bus at Thampanoor — not moving. This week avoid Chalai Market or you will lose your wallet AND your sense of direction. Padmanabha swami has noted your recent behaviour. Shokam aanu, mone."
+```bash
+pip install -r requirements-dev.txt
+pytest
+python -m tools.db_report         # row counts for $DB_PATH
 ```
 
-### Passive Curse Reply (Doomed Prediction)
-```
-User: damn this is so frustrating
-Navi: "@User, Navi is watching. Your stars say you will get stuck in KD Puram traffic for 45 minutes on a Tuesday with no charge in your phone. Chumma vayadi ayikko."
-```
-
-### Passive Curse Reply (Curse Back)
-```
-User: this is such bullshit
-Navi: "Aiyo @User, nee oru Pottan aanu. Ponmudi mist-pole ninte future also unclear. Kili poyi!"
-```
-
----
+Point `DB_PATH` at a copy of the database, never the live file. See `SETUP.md` and `DEPLOYMENT.md` for hosting.
 
 ## Troubleshooting
 
-### "DISCORD_TOKEN not found"
-- Make sure `.env` file exists and contains `DISCORD_TOKEN=your_token`
-
-### "GEMINI_API_KEY not found"
-- Make sure `.env` file contains `GEMINI_API_KEY=your_key`
-
-### Bot not responding to commands
-- Make sure the bot has proper permissions (Send Messages, Read Message History)
-- Check that Message Content Intent is enabled in Discord Developer Portal
-
-### Gemini API errors
-- Check your API key is valid and has quota remaining
-- Fallback message will be used: "Navi-nte lamp went off. KSRTC current problem. Try again mone."
-
-### Bot triggering on its own messages
-- Handled: Bot ignores messages from itself and other bots
-
----
-
-## Credits
-
-Built with ❤️ for Trivandrum and the Manglish speakers everywhere.
-
-**Tech Stack:**
-- Python 3.11+
-- discord.py v2
-- Google Gemini Flash (via google-genai)
-- python-dotenv
+- **"DISCORD_TOKEN not found"**: create `.env` from `.env.example`.
+- **"No Gemini API key found"**: set `GEMINI_API_KEY_FREE` or `GEMINI_API_KEY_PAID`.
+- **Replies are all fallback text**: check the log for a `Gemini configuration error` line (bad key or `LLM_MODEL`); the owner also gets a DM.
+- **Bot does not react to messages**: enable the Message Content intent and check channel permissions.

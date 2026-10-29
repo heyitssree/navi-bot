@@ -1,4 +1,4 @@
-# curses.py - Curse word triggers, passive reply templates, Boli Points, Kochi slang
+# curse_data.py - Curse word triggers, passive reply templates, Boli Points, Kochi slang
 
 from __future__ import annotations
 
@@ -170,15 +170,40 @@ def get_random_kochi_response(username: str) -> str:
     return template.format(user=username)
 
 
+def _phrase_pattern(phrase: str) -> str:
+    """Whole-word pattern; multi-word phrases match across any run of whitespace."""
+    return r"\b" + r"\s+".join(re.escape(part) for part in phrase.split()) + r"\b"
+
+
+def _alternation(phrases: list[str]) -> re.Pattern[str]:
+    """One case-insensitive regex for a whole word list, longest phrases first."""
+    ordered = sorted(set(phrases), key=lambda p: (-len(p), p))
+    return re.compile("|".join(_phrase_pattern(p) for p in ordered), re.IGNORECASE)
+
+
+# Compiled once at import (previously rebuilt per word on every message).
+_CURSE_WORD_LIST: list[str] = [e["word"] for e in CURSE_WORDS]
+CURSE_RE = _alternation(_CURSE_WORD_LIST)
+SEVERE_CURSE_RE = _alternation(SEVERE_CURSE_WORDS)
+BOLI_TRIGGER_RE = _alternation(BOLI_TRIGGER_WORDS)
+KOCHI_SLANG_RE = _alternation(KOCHI_SLANG)
+
+# Exact per-word patterns, only consulted after the alternation says "something matched",
+# so overlapping entries and list-order results behave exactly as before.
+_CURSE_PATTERNS = [(w, re.compile(_phrase_pattern(w), re.IGNORECASE)) for w in _CURSE_WORD_LIST]
+_BOLI_PATTERNS = [(w, re.compile(_phrase_pattern(w), re.IGNORECASE)) for w in BOLI_TRIGGER_WORDS]
+
+
 def contains_curse_word(text: str) -> tuple[bool, str | None]:
     """Return (matched, word) using word boundaries to avoid false positives.
 
-    Uses \\b so e.g. 'mandarin' will not match 'mandan'.
+    Uses \\b so e.g. 'mandarin' will not match 'mandan'. When several curse words are
+    present, the first in CURSE_WORDS order is returned.
     """
-    lower = text.lower()
-    for entry in CURSE_WORDS:
-        word = entry["word"]
-        if re.search(rf"\b{re.escape(word)}\b", lower):
+    if not CURSE_RE.search(text):
+        return False, None
+    for word, pat in _CURSE_PATTERNS:
+        if pat.search(text):
             return True, word
     return False, None
 
@@ -189,19 +214,12 @@ def contains_boli_trigger(content: str) -> list[str]:
     Uses word boundaries so e.g. 'kidilam' won't match inside 'akidilam'.
     Multi-word phrases like 'kili poyi' are matched as a contiguous span.
     """
-    found: list[str] = []
-    for word in BOLI_TRIGGER_WORDS:
-        # Build a pattern: \b around single tokens, flexible space for multi-word
-        pattern = r"\b" + r"\s+".join(re.escape(part) for part in word.split()) + r"\b"
-        if re.search(pattern, content, re.IGNORECASE):
-            found.append(word)
-    return found
+    if not BOLI_TRIGGER_RE.search(content):
+        return []
+    return [word for word, pat in _BOLI_PATTERNS if pat.search(content)]
 
 
 def contains_kochi_slang(content: str) -> bool:
     """Return True if content contains any Kochi-specific slang (whole-word match)."""
-    for slang in KOCHI_SLANG:
-        pattern = r"\b" + r"\s+".join(re.escape(part) for part in slang.split()) + r"\b"
-        if re.search(pattern, content, re.IGNORECASE):
-            return True
-    return False
+    return KOCHI_SLANG_RE.search(content) is not None
+

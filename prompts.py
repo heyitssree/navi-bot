@@ -5,7 +5,6 @@
 #   - Navi predictions:          get_navi_prompt()
 #   - Curse backchat:            get_curse_prompt()
 #   - Q&A (bot mentions):        get_qa_prompt()
-#   - Daily omen / weather:      get_daily_omen_prompt()
 #   - Conversation summary:      get_summ_prompt(), SUMM_SYSTEM_PROMPT
 #   - Vibe check (de-escalate):  get_vibe_check_prompt()
 #   - Missing member notice:     get_kanmanilla_prompt()
@@ -22,7 +21,7 @@ from __future__ import annotations
 import random
 
 from glossary import get_time_context, get_current_weather_context, get_glossary_text
-from curses import KOCHI_SLANG
+from curse_data import KOCHI_SLANG
 
 # ---------------------------------------------------------------------------
 # Owner username — full Navi personality shown only to this user
@@ -178,42 +177,6 @@ Lead with the accurate answer. Add a dry remark only after the answer is clearly
 Your job is to answer this question correctly. Start your response with the actual answer or key fact — not a remark, not the username, not a joke. The answer comes first.
 - If you don't know, say so plainly.
 - In English only. 1-2 sentences max. One brief comment after the answer is fine if it fits naturally."""
-
-
-# ---------------------------------------------------------------------------
-# Daily Omen + Weather Briefing prompt
-# ---------------------------------------------------------------------------
-
-DAILY_OMEN_PROMPT_TEMPLATE = """Today's Trivandrum weather: {condition}.
-High: {max_temp}°C, Low: {min_temp}°C, Rainfall: {rain_mm}mm.
-Today's focal area: {landmark}.
-
-Write a funny morning weather briefing for the server. Be a witty narrator delivering a daily briefing.
-
-Requirements:
-- FIRST: State the weather clearly in plain English (e.g. "Today will be hot — {max_temp}°C, no escape" or "Rain incoming — {rain_mm}mm, carry an umbrella").
-- THEN: Wrap it in a brief, absurd, dramatic warning for the day.
-- Reference {landmark} naturally.
-- Be funny. Not offensive. No religion, no politics.
-- In English only.
-- 80–100 words maximum. Flowing sentences only. No bullet points."""
-
-
-def get_daily_omen_prompt(
-    condition: str,
-    max_temp: float,
-    min_temp: float,
-    rain_mm: float,
-    landmark: str,
-) -> str:
-    """Fill the daily omen prompt template with forecast data."""
-    return DAILY_OMEN_PROMPT_TEMPLATE.format(
-        condition=condition,
-        max_temp=max_temp,
-        min_temp=min_temp,
-        rain_mm=rain_mm,
-        landmark=landmark,
-    )
 
 
 # ---------------------------------------------------------------------------

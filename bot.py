@@ -34,6 +34,8 @@ from schema import (
     get_health_stats,
     get_user_profile,
     upsert_user,
+    bulk_update_last_seen,
+    get_last_seen,
     get_last_n_predictions,
     save_user_prediction,
     save_prediction,
@@ -153,9 +155,9 @@ from prompts import (
     LEVEL_UP_MESSAGES,
     LINK_USERNAME,
 )
-from curses import (
+from curse_data import (
     CURSE_WORDS,
-    SEVERE_CURSE_WORDS,
+    SEVERE_CURSE_RE,
     get_random_curse,
     get_random_compliment,
     get_random_doomed_prediction,
@@ -248,9 +250,8 @@ _VIBE_COOLDOWN_SECONDS = 60  # don't fire again within 60s for the same channel
 
 def _is_heated_message(content: str) -> bool:
     """Return True if the message is all-caps or contains a severe curse word."""
-    lower = content.lower()
     is_allcaps = len(content) > 3 and content == content.upper() and content.strip().isalpha() is False and any(c.isalpha() for c in content)
-    has_severe = any(re.search(rf"\b{re.escape(w)}\b", lower) for w in SEVERE_CURSE_WORDS)
+    has_severe = SEVERE_CURSE_RE.search(content) is not None
     return is_allcaps or has_severe
 
 
@@ -381,6 +382,33 @@ _BOT_START_TIME = datetime.now(timezone.utc)
 
 # In-memory set of user IDs seen this session — avoids upsert_user on every message
 _seen_users: set[int] = set()
+
+# user_id -> UTC 'YYYY-MM-DD HH:MM:SS' of their latest message; flushed to user_stats in one
+# executemany every _LAST_SEEN_FLUSH_SECONDS and on shutdown.
+_last_seen_pending: dict[int, str] = {}
+_LAST_SEEN_FLUSH_SECONDS = 600
+
+
+def _flush_last_seen() -> int:
+    """Write pending last_seen values to the DB. Safe to call from any thread."""
+    if db_conn is None or not _last_seen_pending:
+        return 0
+    batch = dict(_last_seen_pending)
+    count = bulk_update_last_seen(db_conn, batch)
+    for uid, ts in batch.items():  # keep entries that were refreshed while writing
+        if _last_seen_pending.get(uid) == ts:
+            _last_seen_pending.pop(uid, None)
+    return count
+
+
+async def _last_seen_flush_loop() -> None:
+    while True:
+        await asyncio.sleep(_LAST_SEEN_FLUSH_SECONDS)
+        try:
+            n = await asyncio.get_running_loop().run_in_executor(None, _flush_last_seen)
+            logger.debug("Flushed last_seen for %d users", n)
+        except Exception as exc:
+            logger.error("last_seen flush failed: %s", exc)
 
 # ---------------------------------------------------------------------------
 # In-memory feature toggle cache (Feature 8)
@@ -850,6 +878,7 @@ async def get_navi_prediction(user_id: int, name: str, usage_count: int = 1) -> 
             cache_type="navi",
             name=name,
             fallback_message=random.choice(FALLBACK_MESSAGES),
+            cacheable=True,
         ),
     )
 
@@ -1330,6 +1359,16 @@ async def _backup_loop() -> None:
         await asyncio.sleep(_BACKUP_INTERVAL_HOURS * 3600)
 
 
+async def _dm_owner(text: str) -> None:
+    """Best-effort DM to the bot owner (used for configuration alerts)."""
+    try:
+        owner_id = OWNER_ID or (await bot.application_info()).owner.id
+        user = await bot.fetch_user(owner_id)
+        await user.send(f"⚠️ {text}")
+    except Exception as exc:
+        logger.warning("Could not DM owner: %s", exc)
+
+
 @bot.event
 async def on_ready() -> None:
     global db_conn, gemini_svc, api_mgr
@@ -1347,6 +1386,13 @@ async def on_ready() -> None:
         paid_api_key=PAID_API_KEY,
         db_conn=db_conn,
     )
+    loop = asyncio.get_running_loop()
+
+    def _alert_owner(text: str) -> None:  # called from worker threads
+        asyncio.run_coroutine_threadsafe(_dm_owner(text), loop)
+
+    gemini_svc.on_config_error = _alert_owner
+    await loop.run_in_executor(None, gemini_svc.verify_model)
 
     # Initialise rate limiter
     api_mgr = ApiManager(
@@ -1374,6 +1420,9 @@ async def on_ready() -> None:
     # Start hourly DB backup loop
     asyncio.create_task(_backup_loop())
 
+    # Flush in-memory last_seen to the DB every 10 minutes
+    asyncio.create_task(_last_seen_flush_loop())
+
     # Start daily lucky draw loop (fires at 7:00am IST)
     asyncio.create_task(_lucky_draw_loop())
 
@@ -1394,6 +1443,10 @@ async def on_ready() -> None:
 async def on_close() -> None:
     """Backup then close the DB cleanly on shutdown."""
     if db_conn is not None:
+        try:
+            _flush_last_seen()
+        except Exception:
+            pass
         try:
             log_session_event(db_conn, "stop")
         except Exception:
@@ -1505,6 +1558,8 @@ async def on_message(message: discord.Message) -> None:
             status = "now running in Free-Only Mode (will fallback to cache if free key fails)." if gemini_svc.free_only else "Gemini Paid Tier is back online."
             await message.reply(f"Ok owner, {status}")
         return
+
+    _last_seen_pending[message.author.id] = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
 
     # Upsert user record only on first message per session (in-memory cache to avoid DB write on every message)
     if message.author.id not in _seen_users:
@@ -2511,18 +2566,25 @@ async def kanmanilla_slash(interaction: discord.Interaction, user: discord.Membe
     # Defer early — channel history search can take a moment
     await interaction.response.defer(thinking=True)
 
-    # Search all readable text channels for the user's most recent message
+    # Database first (last_seen is tracked on every message); only scan channels when no record exists.
     last_message_time: datetime | None = None
-    for ch in interaction.guild.text_channels:
+    seen_raw = _last_seen_pending.get(user.id) or get_last_seen(db_conn, user.id)
+    if seen_raw:
         try:
-            async for msg in ch.history(limit=50):
-                if msg.author.id == user.id:
-                    msg_time = msg.created_at if msg.created_at.tzinfo else msg.created_at.replace(tzinfo=timezone.utc)
-                    if last_message_time is None or msg_time > last_message_time:
-                        last_message_time = msg_time
-                    break  # only the most recent message per channel matters
-        except (discord.Forbidden, discord.HTTPException):
-            continue
+            last_message_time = datetime.strptime(seen_raw[:19], "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc)
+        except ValueError:
+            last_message_time = None
+    if last_message_time is None:
+        for ch in interaction.guild.text_channels:
+            try:
+                async for msg in ch.history(limit=50):
+                    if msg.author.id == user.id:
+                        msg_time = msg.created_at if msg.created_at.tzinfo else msg.created_at.replace(tzinfo=timezone.utc)
+                        if last_message_time is None or msg_time > last_message_time:
+                            last_message_time = msg_time
+                        break  # only the most recent message per channel matters
+            except (discord.Forbidden, discord.HTTPException):
+                continue
 
     now = datetime.now(timezone.utc)
     if last_message_time is not None:
@@ -5199,4 +5261,11 @@ if __name__ == "__main__":
         "✓" if PAID_API_KEY else "✗",
         FREE_TIER_MODE,
     )
-    bot.run(DISCORD_TOKEN)
+    try:
+        bot.run(DISCORD_TOKEN)
+    finally:
+        # discord.Client never dispatches on_close, so flush pending last_seen here.
+        try:
+            _flush_last_seen()
+        except Exception as exc:
+            logger.warning("Final last_seen flush failed: %s", exc)

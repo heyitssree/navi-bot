@@ -8,10 +8,10 @@ This guide covers deploying Navi V2 to a GCP **e2-micro** Linux VM.
 
 | Change | Action needed on VM |
 |---|---|
-| New deps: `duckdb`, `requests` | `pip install -r requirements.txt` |
+| New dep: `requests` | `pip install -r requirements.txt` |
 | New env vars | Update `.env` (see Step 3) |
 | `data/` and `logs/` dirs | Auto-created on first bot startup |
-| Old `response_cache.json` | Can be deleted — replaced by DuckDB |
+| Old `response_cache.json` | Can be deleted — replaced by the SQLite cache |
 | Old `GEMINI_API_KEY` | Rename to `GEMINI_API_KEY_PAID` in `.env` |
 
 ---
@@ -22,7 +22,7 @@ On your **local machine**, commit and push everything:
 
 ```bash
 git add .
-git commit -m "feat: Navi V2 - DuckDB, dual-key, rate limiter, gamification"
+git commit -m "feat: Navi V2 - SQLite, dual-key, rate limiter, gamification"
 git push origin main
 ```
 
@@ -46,7 +46,7 @@ git pull origin main
 # Activate your virtual environment
 source .venv/bin/activate
 
-# Install new dependencies (duckdb + requests were added)
+# Install dependencies
 pip install -r requirements.txt
 ```
 
@@ -105,7 +105,7 @@ You should see startup logs like:
 
 ```
 2026-04-24 [INFO] navi: Starting Navi V2... Free key: ✓ | Paid key: ✓
-2026-04-24 [INFO] navi.schema: DuckDB initialised at data/navi.db
+2026-04-24 [INFO] navi.schema: SQLite initialised at data/navi.db
 2026-04-24 [INFO] navi.gemini: GeminiService initialised. Available keys: ['free', 'paid']
 2026-04-24 [INFO] navi: Logged in as Navi#XXXX
 2026-04-24 [INFO] navi: Slash commands synced. Navi V2 is live.
@@ -127,7 +127,6 @@ Back in Discord, test these:
 | `/health` (owner only) | Status embed showing active key, RPM, circuit state |
 | Say "machane" in chat | Condescending Thirontharam reply |
 | Say "kidilam" in chat | +5 Boli Points silently awarded |
-| 7:00 AM IST | `#off-topic` receives daily omen + weather |
 
 ---
 
@@ -178,12 +177,12 @@ Add this line:
 
 ## Backing Up Boli Points Data
 
-The DuckDB file at `data/navi.db` is not committed to git. To back up user stats:
+The SQLite file at `data/navi.db` is not committed to git. To back up user stats:
 
 ```bash
 cd ~/navi-bot
 source .venv/bin/activate
-python -c "import schema, duckdb; conn = duckdb.connect('data/navi.db'); schema.export_stats_csv(conn, 'data/backup_stats.csv'); print('Done')"
+python -c "import schema; conn = schema.init_db(); schema.export_stats_csv(conn, 'data/backup_stats.csv'); print('Done')"
 ```
 
 Then copy it to your local machine:
@@ -204,7 +203,6 @@ gcloud compute scp navi-server:~/navi-bot/data/backup_stats.csv ./backup_stats.c
 | Bot shows `active_key: none` in `/health` | Both API keys are failing — check quotas in Google AI Studio |
 | `#off-topic channel not found` | Set `HORRIBLESCOPE_CHANNEL=general` in `.env` to match your server |
 | Bot crashes on startup | Check `logs/bot.log` for the traceback: `cat logs/bot.log` |
-| Daily omen not posting | Confirm the bot was running at 7:00 AM IST (01:30 UTC) |
 
 ---
 

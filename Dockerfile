@@ -12,7 +12,7 @@ COPY . .
 # Create persistent directories
 RUN mkdir -p data logs
 
-# Expose volumes for DuckDB persistence and logs
+# Expose volumes for SQLite database persistence and logs
 VOLUME ["/app/data", "/app/logs"]
 
 # Health check: confirm the bot process is running
