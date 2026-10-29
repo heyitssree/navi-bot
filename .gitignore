@@ -21,3 +21,14 @@ __pycache__/
 .venv/
 
 # NOTE: .env.example IS tracked (it contains no real keys)
+
+# v2 dev tooling
+.env.*
+!.env.example
+data/dev/
+data/*.db
+*.db
+data/local_media/
+data/backups/
+.pytest_cache/
+.ruff_cache/
