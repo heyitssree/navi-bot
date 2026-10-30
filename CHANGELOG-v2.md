@@ -400,3 +400,9 @@ One registry, one control surface. 692 tests pass (stable over repeated runs).
 - Heartbeat alarm shows ALARM while the bot is idle (no heartbeat); the SNS email subscription still needs to be confirmed.
 - Still to do by the owner: `scripts/put-secrets.sh`, `scripts/put-config.sh`, confirm the SNS email, seed the database, `scripts/enable.sh`.
 - Switched the Bedrock model to Gemma 3 27B (`google.gemma-3-27b-it`) after `reports/model-compare-2026-10-30.md`; redeployed (IAM statement and instance config; the instance was replaced). After enabling, set `/admin set ai.price_input_per_mtok 0.28` and `ai.price_output_per_mtok 0.46` (approximate list prices) so the cost estimate is right.
+
+### Chat redirect (owner request, before the first start)
+- `services/chat_throttle.py` + `handlers/mention_qa.py`: outside `channel.bot_commands`, @Navi questions are limited to 4 per person per 5 minutes; the 5th gets one in-character note
+  pointing at the bot-commands channel, then Navi ignores that person's AI conversation for 5 minutes. No limit in bot-commands; nothing else changes (the handler already owned only mentions).
+  Settings: `feature.chat_redirect`, `chat.redirect_calls` (4), `chat.redirect_window_seconds` (300), `chat.redirect_cooldown_seconds` (300). Inactive until `channel.bot_commands` is set.
+- Tests: 11 new in `tests/phase9`; 907 pass.

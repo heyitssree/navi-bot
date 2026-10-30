@@ -8,6 +8,7 @@ import random
 import discord
 
 from navi.data.curse_data import contains_curse_word
+from navi.services import chat_throttle
 from navi.services.mentions import only_user
 from navi.services.qa import answer_question, limit_notice_due
 
@@ -26,6 +27,13 @@ async def handle_mention_qa(ctx, message: discord.Message) -> bool:
         if not ctx.settings.get("feature.mention_qa"):
             return True   # switched off: stay silent (and keep the message away from the other handlers)
         if content_without_ping and not contains_curse_word(message.content)[0]:
+            verdict = chat_throttle.check(ctx, message.author.id, message.channel.id)
+            if verdict == chat_throttle.SILENT:
+                return True            # in the quiet period: no AI conversation with this person outside bot-commands
+            if verdict == chat_throttle.REDIRECT:
+                await message.reply(chat_throttle.redirect_text(ctx, message.author), allowed_mentions=only_user(message.author))
+                return True
+
             async def _do_qa_call():
                 await asyncio.sleep(random.uniform(1.0, 2.0))
                 return await answer_question(ctx, message, content_without_ping)

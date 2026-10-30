@@ -27,7 +27,8 @@ partner.rate_limit_rpm partner.min_xp
 channel.bot_commands channel.mod_alerts emoji.link_summary
 privacy.optin_cooldown_days privacy.block_optout_with_strikes privacy.audit_includes_optouts
 state.lucky_draw_last_date
-""".split()
+feature.chat_redirect chat.redirect_calls chat.redirect_window_seconds chat.redirect_cooldown_seconds
+""".split()          # last row: added after the spec (owner request, Phase 8): AI chat redirect to bot-commands
 
 SAMPLE = {"bool": "off", "int": None, "float": None, "str": "hello", "channel": "<#123>", "role": "<@&456>", "id_list": "1 2 3"}
 

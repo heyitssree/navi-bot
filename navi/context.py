@@ -34,6 +34,8 @@ class RuntimeState:
     summarized_messages: set[int] = field(default_factory=set)
     temp_vc_registry: dict[int, asyncio.Task] = field(default_factory=dict)
     limit_notice: dict[int, float] = field(default_factory=dict)   # user -> time we last told them they hit a Q&A limit
+    chat_calls: dict[int, deque] = field(default_factory=dict)     # user -> times of recent AI-conversation attempts outside bot-commands
+    chat_cooldown: dict[int, float] = field(default_factory=dict)  # user -> monotonic time until which Navi ignores their AI conversation
     recent_templates: dict[tuple[int, str], deque] = field(default_factory=dict)   # (user, kind) -> last 5 template ids
 
 

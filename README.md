@@ -34,6 +34,10 @@ Gemini for the chatty parts; the curse/bless game itself uses no AI.
 lets the owner, moderators and approved teachers extend Navi's local knowledge. Mention Q&A answers from knowledge or a cache before using the LLM, and in the
 configured bot-commands channel Navi follows reply chains (`feature.context_replies`, `channel.bot_commands`).
 
+**Chat redirect** (`feature.chat_redirect`, needs `channel.bot_commands`): outside the bot-commands channel a person can talk to Navi (`@Navi` questions) 4 times in 5 minutes. The next try gets one note
+pointing to the bot-commands channel, and Navi then ignores that person's AI conversation for 5 minutes. In bot-commands there is no limit. Only AI conversation is affected; commands, games and
+every other feature are unchanged. Numbers: `chat.redirect_calls`, `chat.redirect_window_seconds`, `chat.redirect_cooldown_seconds`.
+
 **Admin** (`/admin ...`, owner or the `system.panel_role` role): `panel` (browse and edit every setting), `set` / `get` / `reset`, `killswitch`, `status`,
 `user points|strikes_reset|game_attempts_reset`, `teach allow|revoke|list`, `review`, `export` / `import`, `testing`. Every runtime knob is one line in
 `navi/settings/registry.py`; changes apply immediately.
