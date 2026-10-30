@@ -110,7 +110,7 @@ python -m tools.db_report         # row counts for $DB_PATH
 python -m tools.migrate_v2 --src old.db --dst data/v2/navi.db --privacy data/v2/privacy.db   # pre-v2 -> v2 (verifies invariants)
 ```
 
-Point `DB_PATH` at a copy of the database, never the live file. See `SETUP.md` and `DEPLOYMENT.md` for hosting.
+Point `DB_PATH` at a copy of the database, never the live file. See `SETUP.md` and `DEPLOYMENT.md` for hosting, and `infra/README.md` for the AWS (CDK) deployment.
 
 ## Troubleshooting
 

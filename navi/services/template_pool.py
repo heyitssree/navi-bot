@@ -110,7 +110,7 @@ def validate_candidate(text: str, kind: str, existing: list[str]) -> str | None:
 
 async def generate_batch(ctx, kind: str) -> dict[str, int]:
     """One template_batch call for a kind. Returns counts: asked / added / dropped by reason."""
-    from navi.llm.prompts.templates import get_template_batch_prompt, TEMPLATE_BATCH_SYSTEM
+    from navi.llm.prompts.templates import TEMPLATE_BATCH_SYSTEM, get_template_batch_prompt
 
     n = ctx.settings.get("safety.template_batch_size")
     res = await ctx.llm.generate(

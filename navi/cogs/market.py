@@ -22,8 +22,8 @@ from navi.db.repos.market import (
     reduce_holding,
 )
 from navi.db.repos.users import get_user_profile
-from navi.services.market_engine import get_trend_arrow
 from navi.services.features import deny_if_disabled
+from navi.services.market_engine import get_trend_arrow
 from navi.services.points import award
 
 try:

@@ -1,0 +1,16 @@
+[Unit]
+Description=Navi Discord bot
+After=docker.service network-online.target
+Requires=docker.service
+
+[Service]
+EnvironmentFile=/opt/navi/env
+ExecStartPre=/opt/navi/update.sh pull
+ExecStart=/opt/navi/update.sh run
+ExecStop=/usr/bin/docker stop -t 60 navi
+Restart=always
+RestartSec=15
+TimeoutStopSec=90
+
+[Install]
+WantedBy=multi-user.target

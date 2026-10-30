@@ -8,6 +8,7 @@ import re
 import discord
 
 from navi.db.repos.media import get_local_media, update_app_emoji_last_used
+from navi.services.media_store import load_file
 
 logger = logging.getLogger("navi.handlers.shortcuts")
 
@@ -81,15 +82,15 @@ async def handle_shortcut(ctx, message: discord.Message) -> bool:
                     await message.reply(f"Sticker URL for `;;{shortcut_key}` is missing.")
 
             else:
-                # local file (original behavior)
-                import os as _os
-                if _os.path.isfile(media_entry["file_path"]):
+                # file on local disk, or an object in the bot's S3 bucket
+                media_file = await load_file(ctx, media_entry)
+                if media_file is not None:
                     if reply_target:
-                        await reply_target.reply(file=discord.File(media_entry["file_path"]))
+                        await reply_target.reply(file=media_file)
                     else:
-                        await message.channel.send(file=discord.File(media_entry["file_path"]))
+                        await message.channel.send(file=media_file)
                 else:
-                    await message.reply(f"Media file for `;;{shortcut_key}` is missing from disk.")
+                    await message.reply(f"Media file for `;;{shortcut_key}` is missing.")
 
         return True  # shortcut messages don't trigger any other processing
     return False

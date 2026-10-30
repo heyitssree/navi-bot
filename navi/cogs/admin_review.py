@@ -5,8 +5,8 @@ from __future__ import annotations
 import discord
 
 from navi.db.repos.content import list_pending_content, set_content_status
-from navi.services.teach import refresh_policy
 from navi.db.repos.knowledge import list_pending_knowledge, set_knowledge_status
+from navi.services.teach import refresh_policy
 
 BATCH = 5
 

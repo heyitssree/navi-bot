@@ -366,3 +366,21 @@ One registry, one control surface. 692 tests pass (stable over repeated runs).
 ### Notes
 - `ai.model` (the Gemini override) is ignored while Bedrock is active; `ai.max_output_tokens` now reaches Bedrock as `maxTokens`.
 - Haiku 5.5 prices in settings are the October 2026 list prices from the spec; update them if AWS changes them.
+
+## Phase 8 - AWS infrastructure (CDK Python)  [branch v2/phase-8-infra]
+
+### Done
+- `infra/`: CDK v2 app with Network, Data, Compute and Monitoring stacks (typed config from `cdk.json`, Makefile, cfn-lint, 46 stack tests). Single Graviton
+  instance in an ASG of exactly one, IMDSv2, no inbound rules, no NAT, encrypted gp3 root, least-privilege role (SSM path, bucket, ECR pull, logs, heartbeat metric,
+  Bedrock global inference profile). Offline synth (explicit AZ, context file).
+- Container: `Dockerfile` (arm64/amd64, non-root, Litestream pinned), `docker/entrypoint.sh` (restore, seed fallback, replicate), `docker/litestream.yml`.
+- Operator scripts: `put-secrets.sh` (values read silently, never in arguments), `put-config.sh`, `seed-db.sh`, `deploy.sh`, `enable.sh`, `disable.sh`.
+- App: SSM config loading (environment wins), S3-backed media (`services/media_store.py`, opt-out also deletes S3 objects), CloudWatch heartbeat, SIGTERM clean
+  shutdown, `LOG_TO_FILE=0`. `tools/media_to_s3.py` for the cutover.
+- Tests: 882 pass (19 new in `tests/phase8`).
+
+### Not done / needs you
+- `cdk bootstrap`, `cdk diff` and `cdk deploy` have NOT been run (they cost money and change the account). Commands are in `infra/README.md`.
+- The account's SCP denies most services this phase needs, and Bedrock is still on the new-account verification hold. Resolve both before the gate.
+- Docker image build and the Litestream config against the real binary are not yet verified.
+- Phase 8b (partner ingest) is skipped; the partner bot is not in use.

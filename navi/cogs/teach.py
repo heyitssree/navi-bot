@@ -10,7 +10,7 @@ from navi.context import AppContext
 from navi.db.repos.knowledge import list_knowledge, remove_knowledge
 from navi.services.features import deny_if_disabled
 from navi.services.mentions import nobody
-from navi.services.teach import CATEGORIES, DESC_LEN, TERM_LEN, role_of, submit, validate_entry, refresh_policy
+from navi.services.teach import CATEGORIES, DESC_LEN, TERM_LEN, refresh_policy, role_of, submit, validate_entry
 
 CATEGORY_CHOICES = [app_commands.Choice(name=c.title(), value=c) for c in CATEGORIES]
 

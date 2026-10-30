@@ -1,8 +1,6 @@
 # navi/cogs/predictions.py - moved from bot.py (behaviour unchanged)
 from __future__ import annotations
 
-from navi.services.mentions import only_user
-
 import asyncio
 import logging
 import random
@@ -16,6 +14,7 @@ from navi.data.messages import BOT_LOOP_CURSE_REPLIES
 from navi.db.repos.content import get_todays_user_prediction
 from navi.db.repos.users import get_user_profile
 from navi.services.levels import maybe_announce_levelup
+from navi.services.mentions import only_user
 from navi.services.points import award
 from navi.services.predictions import format_cached_spam_reply, get_navi_prediction, get_user_minute_count
 from navi.services.templates import get_template

@@ -9,11 +9,15 @@ from dataclasses import dataclass
 logger = logging.getLogger("navi.config")
 
 
+# Parameters under the prefix that belong to the infrastructure, not to the app's configuration.
+SSM_INFRA_KEYS = {"IMAGE_URI", "RUN_ENABLED", "BUCKET"}
+
+
 def load_ssm_parameters(prefix: str, client=None) -> int:
     """Copy SSM parameters under *prefix* into os.environ (existing variables win). Returns how many were set.
 
     Used when NAVI_SSM_PREFIX is set (e.g. "/navi/prod/"). The parameter name after the prefix becomes the
-    variable name, so /navi/prod/DISCORD_TOKEN -> DISCORD_TOKEN. SecureString values are decrypted.
+    variable name, so /navi/prod/discord_token -> DISCORD_TOKEN (names are upper-cased). SecureString values are decrypted.
     """
     if client is None:
         import boto3  # only needed on AWS
@@ -28,8 +32,8 @@ def load_ssm_parameters(prefix: str, client=None) -> int:
             kwargs["NextToken"] = token
         resp = client.get_parameters_by_path(**kwargs)
         for param in resp.get("Parameters", []):
-            key = param["Name"][len(prefix):]
-            if key and key not in os.environ:
+            key = param["Name"][len(prefix):].upper()          # /navi/prod/discord_token -> DISCORD_TOKEN
+            if key and key not in SSM_INFRA_KEYS and key not in os.environ:
                 os.environ[key] = param["Value"]
                 count += 1
         token = resp.get("NextToken")
@@ -53,6 +57,7 @@ class Config:
     partner_port: int
     bedrock_model_id: str | None = None   # BEDROCK_MODEL_ID: global inference profile id
     aws_region: str = "ap-south-1"
+    bucket: str | None = None            # NAVI_BUCKET: private S3 bucket (media, exports, Litestream)
     privacy_db_path: str | None = None   # default: privacy.db next to the main database
 
     @classmethod
@@ -78,5 +83,6 @@ class Config:
             partner_port=int(os.getenv("API_SERVER_PORT", "8080")),
             bedrock_model_id=os.getenv("BEDROCK_MODEL_ID") or None,
             aws_region=os.getenv("AWS_REGION", "ap-south-1"),
+            bucket=os.getenv("NAVI_BUCKET") or None,
             privacy_db_path=os.getenv("PRIVACY_DB_PATH"),
         )

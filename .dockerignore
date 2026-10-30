@@ -12,3 +12,11 @@ input_feed/
 *.md
 test_*.py
 tools/
+infra/
+reports/
+docs/
+tests/
+.env*
+.pytest_cache/
+.ruff_cache/
+requirements-dev.txt

@@ -1,8 +1,6 @@
 # navi/handlers/vibe.py - moved from bot.py (behaviour unchanged)
 from __future__ import annotations
 
-from navi.services.mentions import nobody
-
 import logging
 from collections import deque
 from datetime import datetime, timezone
@@ -12,6 +10,7 @@ import discord
 from navi.data.curse_data import SEVERE_CURSE_RE
 from navi.llm.base import LLMRequest
 from navi.llm.prompts import get_time_aware_system_prompt, get_vibe_check_prompt
+from navi.services.mentions import nobody
 
 logger = logging.getLogger("navi.handlers.vibe")
 

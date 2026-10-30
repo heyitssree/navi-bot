@@ -1,0 +1,34 @@
+{
+  "app": "python3 app.py",
+  "watch": {
+    "include": [
+      "**"
+    ],
+    "exclude": [
+      "README.md",
+      "cdk*.json",
+      "**/__pycache__",
+      "tests",
+      ".venv"
+    ]
+  },
+  "context": {
+    "@aws-cdk/core:target-partitions": [
+      "aws"
+    ],
+    "@aws-cdk/aws-iam:minimizePolicies": true,
+    "navi:envName": "prod",
+    "navi:account": "<account-id>",
+    "navi:region": "ap-south-1",
+    "navi:instanceType": "t4g.micro",
+    "navi:useSpot": false,
+    "navi:rootVolumeGiB": 10,
+    "navi:alertEmail": "you@example.com",
+    "navi:monthlyBudgetUsd": 15,
+    "navi:bedrockProfileId": "global.anthropic.claude-haiku-5-5",
+    "navi:bedrockModelArnPattern": "anthropic.claude-haiku-5-5",
+    "navi:enablePartnerIngest": false,
+    "@aws-cdk/core:defaultCrossStackReferences": "strong",
+    "navi:availabilityZone": "ap-south-1a"
+  }
+}

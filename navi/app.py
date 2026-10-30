@@ -5,6 +5,8 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import signal
+from pathlib import Path
 
 import discord
 from discord import app_commands
@@ -13,30 +15,29 @@ from discord.ext import commands
 from navi.api.partner import run_api_server
 from navi.config import Config
 from navi.context import AppContext
-from pathlib import Path
-
 from navi.db import connection as db_connection
 from navi.db.connection import init_db
-from navi.db.repos.privacy import connect_privacy
 from navi.db.repos.events import count_llm_calls_today, log_command_event, log_llm_call, log_session_event
 from navi.db.repos.knowledge import seed_local_knowledge
+from navi.db.repos.privacy import connect_privacy
 from navi.handlers import pipeline
+from navi.llm import safety
 from navi.llm.factory import build_providers
+from navi.llm.policy import build_policy, write_allowlist
 from navi.llm.router import LLMRouter
 from navi.services.backup import backup_loop, do_backup
+from navi.services.heartbeat import heartbeat_loop
 from navi.services.last_seen import flush_last_seen, last_seen_flush_loop
 from navi.services.lucky_draw import lucky_draw_loop
 from navi.services.market_loop import market_hourly_loop
-from navi.services.owner import dm_owner
-from navi.llm import safety
-from navi.llm.policy import build_policy, write_allowlist
 from navi.services.mentions import DEFAULT as DEFAULT_MENTIONS
+from navi.services.owner import dm_owner
 from navi.services.predictions import make_cache_lookup
-from navi.services.template_pool import seed_templates, store_rejected, template_batch_loop
+from navi.services.privacy import OPTED_OUT_MESSAGE, Privacy
 from navi.services.retention import retention_loop
 from navi.services.slang_scorer import load_slang_data
+from navi.services.template_pool import seed_templates, store_rejected, template_batch_loop
 from navi.services.templates import load_templates
-from navi.services.privacy import OPTED_OUT_MESSAGE, Privacy
 from navi.settings.store import Settings
 
 logger = logging.getLogger("navi")
@@ -102,6 +103,11 @@ class NaviBot(commands.Bot):
     async def setup_hook(self) -> None:
         for ext in COGS:
             await self.load_extension(ext)
+        # `docker stop` / systemd send SIGTERM: close the Discord connection, flush state and let Litestream sync one last time.
+        try:
+            asyncio.get_running_loop().add_signal_handler(signal.SIGTERM, lambda: asyncio.create_task(self.close()))
+        except (NotImplementedError, RuntimeError):      # Windows / non-main thread
+            pass
 
     async def close(self) -> None:
         await shutdown(self.ctx)
@@ -206,6 +212,8 @@ def register_events(bot: NaviBot, ctx: AppContext) -> None:
         start_task(ctx, "lucky_draw", lucky_draw_loop(ctx))
         start_task(ctx, "market_hourly", market_hourly_loop(ctx))
         start_task(ctx, "retention", retention_loop(ctx))
+        if os.getenv("NAVI_ENV"):
+            start_task(ctx, "heartbeat", heartbeat_loop(os.getenv("NAVI_ENV")))
         start_task(ctx, "template_batches", template_batch_loop(ctx))
         start_task(ctx, "partner_api", run_api_server(ctx.db, allowed_guild_id=ctx.config.guild_id, settings=ctx.settings, privacy=ctx.privacy))
 
@@ -237,15 +245,11 @@ def register_events(bot: NaviBot, ctx: AppContext) -> None:
 
 
 def configure_logging() -> None:
-    os.makedirs("logs", exist_ok=True)
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-        handlers=[
-            logging.StreamHandler(),
-            logging.FileHandler("logs/bot.log", encoding="utf-8"),
-        ],
-    )
+    handlers: list[logging.Handler] = [logging.StreamHandler()]
+    if os.getenv("LOG_TO_FILE", "1") != "0":          # in the container logs go to CloudWatch through the Docker log driver
+        os.makedirs("logs", exist_ok=True)
+        handlers.append(logging.FileHandler("logs/bot.log", encoding="utf-8"))
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s", handlers=handlers)
 
 
 def main() -> None:

@@ -40,6 +40,7 @@ class OptInResult:
 @dataclass
 class PurgeResult:
     media_files: list[str]
+    s3_keys: list[str]
     orphan_app_emojis: list[str]
     rows_deleted: int
 
@@ -84,11 +85,15 @@ class Privacy:
         self.mark_out(user_id)
         result = purge_user(ctx.db, user_id)
         clear_memory(ctx, user_id)
-        for path in result.media_files:           # local files; S3 objects are removed by the AWS storage layer in Phase 8
+        for path in result.media_files:
             try:
                 os.remove(path)
             except OSError:
                 pass
+        if result.s3_keys and ctx.config.bucket:
+            from navi.services.media_store import delete_objects
+
+            delete_objects(ctx.config.bucket, result.s3_keys)
         return result
 
     # ----------------------------------------------------------------- opt in
@@ -127,7 +132,8 @@ def purge_user(db: sqlite3.Connection, user_id: int) -> PurgeResult:
     except Exception:
         db.rollback()
         raise
-    return PurgeResult(media_files=[m[2] for m in media if m[1] == "local" and m[2]], orphan_app_emojis=orphans, rows_deleted=deleted)
+    return PurgeResult(media_files=[m[2] for m in media if m[1] == "local" and m[2]], s3_keys=[m[2] for m in media if m[1] == "s3" and m[2]],
+                       orphan_app_emojis=orphans, rows_deleted=deleted)
 
 
 def clear_memory(ctx, user_id: int) -> None:

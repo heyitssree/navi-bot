@@ -13,9 +13,9 @@ from discord.ext import commands
 
 from navi.context import AppContext
 from navi.db.repos.points import (
-    get_gift_daily_total,
     get_bless_leaderboard,
     get_curse_leaderboard,
+    get_gift_daily_total,
     get_level_from_points,
     points_for_level,
 )
@@ -26,9 +26,9 @@ from navi.db.repos.users import (
     get_user_profile,
     upsert_user,
 )
+from navi.services.features import deny_if_disabled
 from navi.services.levels import get_level_title
 from navi.services.lucky_draw import run_lucky_draw
-from navi.services.features import deny_if_disabled
 from navi.services.points import award
 from navi.services.templates import get_template
 

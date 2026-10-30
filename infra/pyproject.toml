@@ -1,0 +1,12 @@
+[tool.ruff]
+line-length = 135
+target-version = "py311"
+extend-exclude = ["cdk.out", ".venv"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "B", "UP"]
+ignore = ["E501"]   # long CDK/assertion lines read better unwrapped
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"

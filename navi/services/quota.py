@@ -8,8 +8,6 @@ import discord
 
 from navi.db.repos.counters import get_daily_action_count, get_extra_actions
 
-
-
 _OVER_QUOTA_MESSAGES: list[str] = [
     "🌌 {invoker}, you've used all {quota} cosmic actions for today. Head to `/shop buy` to grab a refill (up to 2×10 more).",
     "⭐ Daily quota hit, {invoker}. The cosmos offers refills — `/shop buy` for up to 20 extra actions today.",

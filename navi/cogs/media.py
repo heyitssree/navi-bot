@@ -23,6 +23,7 @@ from navi.db.repos.media import (
     save_local_media,
     update_app_emoji_last_used,
 )
+from navi.services.media_store import load_file
 
 logger = logging.getLogger("navi.cogs.media")
 
@@ -276,17 +277,14 @@ class LocalMediaPickerView(discord.ui.View):
                     )
                     return
             else:
-                # local file
-                import os as _os
-                if not _os.path.isfile(media_entry["file_path"]):
+                # file on local disk, or an object in the bot's S3 bucket
+                media_file = await load_file(ctx, media_entry)
+                if media_file is None:
                     await interaction.response.edit_message(
-                        content=f"File for `;;{shortcut_key}` is missing from disk.", view=None
+                        content=f"File for `;;{shortcut_key}` is missing.", view=None
                     )
                     return
-                await self._target.reply(
-                    content=attribution,
-                    file=discord.File(media_entry["file_path"]),
-                )
+                await self._target.reply(content=attribution, file=media_file)
             await interaction.response.edit_message(content=f"Replied with `;;{shortcut_key}`!", view=None)
         except Exception as exc:
             err_text = getattr(exc, "text", None) or str(exc)

@@ -17,8 +17,8 @@ from navi.db.repos.content import (
 )
 from navi.db.repos.users import get_user_profile, increment_prediction_count, upsert_user
 from navi.llm.base import LLMRequest
-from navi.services.template_pool import store_generated
 from navi.llm.prompts import get_navi_prompt, get_time_aware_system_prompt
+from navi.services.template_pool import store_generated
 
 logger = logging.getLogger("navi.services.predictions")
 

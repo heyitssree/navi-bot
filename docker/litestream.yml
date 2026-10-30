@@ -1,0 +1,20 @@
+# Litestream 0.5.x config. ${VARS} are expanded from the container environment (see /opt/navi/env on the instance).
+# Each database is streamed to the private bucket under litestream/. snapshot.retention bounds how long old data
+# (including rows a user later purged with /privacy opt_out) can survive in the replica.
+snapshot:
+  interval: 24h
+  retention: 72h
+
+dbs:
+  - path: ${DB_PATH}
+    replica:
+      type: s3
+      bucket: ${NAVI_BUCKET}
+      path: litestream/navi
+      region: ${AWS_REGION}
+  - path: ${PRIVACY_DB_PATH}
+    replica:
+      type: s3
+      bucket: ${NAVI_BUCKET}
+      path: litestream/privacy
+      region: ${AWS_REGION}

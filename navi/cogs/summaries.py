@@ -1,8 +1,6 @@
 # navi/cogs/summaries.py - moved from bot.py (behaviour unchanged)
 from __future__ import annotations
 
-from navi.services.mentions import nobody, only_user
-
 import logging
 import random
 import re
@@ -24,6 +22,7 @@ from navi.llm.prompts import (
     get_summ_prompt,
     get_time_aware_system_prompt,
 )
+from navi.services.mentions import nobody, only_user
 
 logger = logging.getLogger("navi.cogs.summaries")
 

@@ -42,6 +42,8 @@ Try `/navi`, `/mypoints`, `/rank` and, as the owner, `/admin status`.
 
 Follow [DEPLOYMENT.md](DEPLOYMENT.md) (tmux on a VM), use `navi.service` as a systemd unit (edit the user and paths first), or deploy with the included `Dockerfile` / `Procfile`.
 
+For AWS (EC2 + Litestream + CDK), see [infra/README.md](infra/README.md).
+
 ## 5. HTTP API for other bots (optional)
 
 Navi starts a small FastAPI server on `API_SERVER_PORT` (default 8080):
