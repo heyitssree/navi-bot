@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """CDK entry point for the Navi bot.
 
-    cdk synth                         # uses navi:* context from cdk.json
+    cdk synth                         # reads infra/navi.env (copy navi.env.example) plus defaults from cdk.json
     cdk deploy --all --require-approval broadening
 """
 import aws_cdk as cdk
@@ -15,6 +15,8 @@ from navi_infra.stacks.network_stack import NetworkStack
 app = cdk.App()
 cfg = load_config(app)
 env = cdk.Environment(account=cfg.account, region=cfg.region)
+# The VPC uses exactly the one AZ from the config; seeding the AZ lookup keeps synth offline (no credentials needed).
+app.node.set_context(f"availability-zones:account={cfg.account}:region={cfg.region}", [cfg.availability_zone])
 prefix = f"Navi-{cfg.env_name}"
 
 net = NetworkStack(app, f"{prefix}-Network", env=env, az=cfg.availability_zone, description=f"Navi network ({cfg.env_name})")

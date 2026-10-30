@@ -3,3 +3,5 @@ cdk.out/
 __pycache__/
 .pytest_cache/
 .ruff_cache/
+navi.env
+cdk.context.json

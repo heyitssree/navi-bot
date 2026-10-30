@@ -1,11 +1,14 @@
-"""Typed configuration for the Navi stacks, read from the `navi:*` context keys in cdk.json.
+"""Typed configuration for the Navi stacks.
 
-Override any value for one run with `cdk synth -c navi:envName=dev`. Values still in <angle brackets> are
-placeholders and make load_config() refuse to continue, so a deploy can never go out half-configured.
+Each value comes from, in order: the process environment (NAVI_*), `infra/navi.env` (git-ignored; copy navi.env.example),
+then the `navi:*` defaults in cdk.json. Account, region and email live only in navi.env, never in code. Values still in
+<angle brackets> are placeholders and make load_config() refuse to continue, so a deploy can never go out half-configured.
 """
 from __future__ import annotations
 
+import os
 import re
+from pathlib import Path
 from dataclasses import dataclass
 
 
@@ -42,10 +45,41 @@ class ConfigError(ValueError):
     pass
 
 
-def _ctx(app, key: str):
-    value = app.node.try_get_context(f"navi:{key}")
+ENV_FILE = Path(__file__).resolve().parent.parent / "navi.env"
+
+
+def load_env_file(path: Path | None = None) -> dict[str, str]:
+    """Parse KEY=VALUE lines (comments and blank lines ignored, optional quotes). Missing file = empty."""
+    path = Path(os.environ.get("NAVI_ENV_FILE") or path or ENV_FILE)
+    values: dict[str, str] = {}
+    if path.is_file():
+        for line in path.read_text().splitlines():
+            line = line.strip()
+            if line and not line.startswith("#") and "=" in line:
+                key, _, value = line.partition("=")
+                values[key.strip()] = value.strip().strip("\"'")
+    return values
+
+
+ENV_NAMES = {
+    "envName": "NAVI_ENV_NAME", "account": "NAVI_ACCOUNT", "region": "NAVI_REGION", "availabilityZone": "NAVI_AVAILABILITY_ZONE",
+    "instanceType": "NAVI_INSTANCE_TYPE", "useSpot": "NAVI_USE_SPOT", "rootVolumeGiB": "NAVI_ROOT_VOLUME_GIB",
+    "alertEmail": "NAVI_ALERT_EMAIL", "monthlyBudgetUsd": "NAVI_MONTHLY_BUDGET_USD",
+    "bedrockProfileId": "NAVI_BEDROCK_MODEL_ID", "bedrockModelArnPattern": "NAVI_BEDROCK_MODEL_ARN_PATTERN",
+    "enablePartnerIngest": "NAVI_ENABLE_PARTNER_INGEST",
+}
+
+
+def _lookup(app, key: str, env: dict[str, str]):
+    """navi:<key> from the process environment, then navi.env, then cdk.json context (None if absent)."""
+    name = ENV_NAMES[key]
+    return os.environ.get(name) or env.get(name) or app.node.try_get_context(f"navi:{key}")
+
+
+def _ctx(app, key: str, env: dict[str, str]):
+    value = _lookup(app, key, env)
     if value is None:
-        raise ConfigError(f"Missing context value navi:{key} in cdk.json")
+        raise ConfigError(f"Missing {ENV_NAMES[key]}: set it in infra/navi.env (see navi.env.example)")
     return value
 
 
@@ -68,18 +102,23 @@ def validate(cfg: NaviConfig) -> NaviConfig:
     return cfg
 
 
-def load_config(app) -> NaviConfig:
+def load_config(app, env: dict[str, str] | None = None) -> NaviConfig:
+    env = load_env_file() if env is None else env
+
+    def get(key: str):
+        return _ctx(app, key, env)
+
     return validate(NaviConfig(
-        env_name=str(_ctx(app, "envName")),
-        account=str(_ctx(app, "account")),
-        region=str(_ctx(app, "region")),
-        instance_type=str(_ctx(app, "instanceType")),
-        use_spot=_flag(_ctx(app, "useSpot")),
-        root_volume_gib=int(_ctx(app, "rootVolumeGiB")),
-        alert_email=str(_ctx(app, "alertEmail")),
-        monthly_budget_usd=int(_ctx(app, "monthlyBudgetUsd")),
-        bedrock_profile_id=str(_ctx(app, "bedrockProfileId")),
-        bedrock_model_arn_pattern=str(_ctx(app, "bedrockModelArnPattern")),
-        enable_partner_ingest=_flag(_ctx(app, "enablePartnerIngest")),
-        availability_zone=str(app.node.try_get_context("navi:availabilityZone") or f"{_ctx(app, 'region')}a"),
+        env_name=str(get("envName")),
+        account=str(get("account")),
+        region=str(get("region")),
+        instance_type=str(get("instanceType")),
+        use_spot=_flag(get("useSpot")),
+        root_volume_gib=int(get("rootVolumeGiB")),
+        alert_email=str(get("alertEmail")),
+        monthly_budget_usd=int(get("monthlyBudgetUsd")),
+        bedrock_profile_id=str(get("bedrockProfileId")),
+        bedrock_model_arn_pattern=str(get("bedrockModelArnPattern")),
+        enable_partner_ingest=_flag(get("enablePartnerIngest")),
+        availability_zone=str(_lookup(app, "availabilityZone", env) or f"{get('region')}a"),
     ))

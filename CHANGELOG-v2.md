@@ -352,7 +352,7 @@ One registry, one control surface. 692 tests pass (stable over repeated runs).
 - Tests: Stubber success / throttling / access denied / 5xx / timeouts, router behaviour with Bedrock errors (cooldown without breaker failure, config alert once,
   3 server errors open the breaker), provider switching, fallback chain, per-provider breakers, cost estimate, status, configuration.
 
-### What I found in your AWS account (read-only calls via the AWS MCP server; account <account-id>, ap-south-1)
+### What I found in your AWS account (read-only calls via the AWS MCP server; an earlier account, ap-south-1)
 - The profile is **`global.anthropic.claude-haiku-5-5`** ("Global Anthropic Claude Haiku 5.5", ACTIVE, SYSTEM_DEFINED; foundation models
   `anthropic.claude-haiku-5-5` in ap-south-1 and global). Older Haiku 4.5 global/IN profiles also exist.
 - A test `Converse` call (20 tokens) returned **AccessDeniedException: "Your account is currently being verified"**. That is the new-account hold (normally under
@@ -391,4 +391,4 @@ One registry, one control surface. 692 tests pass (stable over repeated runs).
   inference-profile check for plain model ids. Tests: 885 app and 47 infra pass.
 - Not verified live: one 20-token Gemma 3 12B call worked on a new account, the next ones hit that account's verification hold, so the system-prompt behaviour and output quality
   are untested. Prices in settings are still the Haiku placeholders: set Gemma's real prices before relying on `/admin status` cost.
-- The second account (<account-id>) is in an AWS-managed organization whose SCP denies CloudFormation and EC2, like the first. Deployment is blocked until an account outside such an organization is used.
+- A second account was in an AWS-managed organization whose SCP denies CloudFormation and EC2, like the first. Deployment is blocked until an account outside such an organization is used.

@@ -4,13 +4,27 @@
 set -euo pipefail
 export AWS_PROFILE="${AWS_PROFILE:-navi}"
 NAVI_ENV="${NAVI_ENV:-prod}"
-REGION="$(jq -r '.context["navi:region"]' "$(dirname "${BASH_SOURCE[0]}")/../infra/cdk.json")"
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# Account, region and the rest come from infra/navi.env (git-ignored); real environment variables win over the file.
+ENV_FILE="${NAVI_ENV_FILE:-$ROOT_DIR/infra/navi.env}"
+if [ -f "$ENV_FILE" ]; then
+  while IFS='=' read -r k v; do
+    case "$k" in ''|\#*) continue ;; esac
+    v="${v%%#*}"; v="$(echo "$v" | sed -e 's/^[[:space:]"]*//' -e 's/[[:space:]"]*$//')"
+    [ -z "${!k:-}" ] && export "$k=$v"
+  done < "$ENV_FILE"
+fi
+REGION="${NAVI_REGION:-}"
 export AWS_DEFAULT_REGION="$REGION"
 PREFIX="/navi/${NAVI_ENV}"
 
 require_real_config() {
-  if grep -q '<' "$(dirname "${BASH_SOURCE[0]}")/../infra/cdk.json"; then
-    echo "infra/cdk.json still contains <placeholders>; fill them in first." >&2; exit 1
+  if [ -z "${NAVI_ACCOUNT:-}" ] || [ -z "$REGION" ] || [[ "$NAVI_ACCOUNT$REGION" == *"<"* ]]; then
+    echo "NAVI_ACCOUNT / NAVI_REGION are not set. Copy infra/navi.env.example to infra/navi.env and fill it in." >&2; exit 1
+  fi
+  local actual; actual="$(aws sts get-caller-identity --query Account --output text)"
+  if [ "$actual" != "$NAVI_ACCOUNT" ]; then
+    echo "The CLI profile '$AWS_PROFILE' is account $actual but infra/navi.env says $NAVI_ACCOUNT. Aborting." >&2; exit 1
   fi
 }
 

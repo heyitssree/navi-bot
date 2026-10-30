@@ -52,3 +52,13 @@ def stacks():
 @pytest.fixture(scope="session")
 def templates(stacks):
     return {k: Template.from_stack(v) for k, v in stacks.items()}
+
+
+@pytest.fixture(autouse=True)
+def _isolated_config(monkeypatch, tmp_path):
+    """Tests never read the real infra/navi.env or NAVI_* variables from the shell."""
+    import os
+
+    monkeypatch.setenv("NAVI_ENV_FILE", str(tmp_path / "missing.env"))
+    for name in [k for k in os.environ if k.startswith("NAVI_") and k != "NAVI_ENV_FILE"]:
+        monkeypatch.delenv(name)

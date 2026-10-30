@@ -13,7 +13,10 @@ Secrets are never in CDK or in chat. They live in SSM Parameter Store (`/navi/<e
 
 ## Configure
 
-Edit the `navi:*` values in `cdk.json` (account, region, alert email, budget, instance type). Synth refuses `<placeholder>` values.
+Nothing account-specific is kept in code or `cdk.json`. Copy `infra/navi.env.example` to `infra/navi.env` (git-ignored) and fill in the account id,
+region, availability zone, alert email, budget and Bedrock model. Real `NAVI_*` environment variables override the file. The scripts and `make bootstrap`
+read the same file and refuse to run if the CLI profile is a different account from `NAVI_ACCOUNT`.
+Pick a region your account's policies allow (a new AWS sign-up account may be limited to a single region; try `aws cloudformation list-stacks --region <r>`).
 `enablePartnerIngest` must stay `false`: Phase 8b (partner ingest) is not built.
 
 ## Develop (no AWS calls)

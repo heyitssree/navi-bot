@@ -1,7 +1,7 @@
 import aws_cdk as cdk
 import pytest
 
-from navi_infra.config import ConfigError, load_config, validate
+from navi_infra.config import ENV_NAMES, ConfigError, load_config, validate
 
 GOOD = {
     "navi:envName": "prod", "navi:account": "111111111111", "navi:region": "ap-south-1", "navi:instanceType": "t4g.micro",
@@ -40,15 +40,31 @@ def test_bad_values_stop_the_deploy(key, value, fragment):
 def test_missing_key_is_reported():
     ctx = dict(GOOD)
     del ctx["navi:region"]
-    with pytest.raises(ConfigError, match="navi:region"):
+    with pytest.raises(ConfigError, match="NAVI_REGION"):
         load_config(cdk.App(context=ctx))
 
 
-def test_real_cdk_json_is_complete_and_valid():
+def test_cdk_json_holds_defaults_only_and_the_example_env_file_covers_the_rest():
     import json
     from pathlib import Path
 
-    ctx = json.loads((Path(__file__).resolve().parents[1] / "cdk.json").read_text())["context"]
+    root = Path(__file__).resolve().parents[1]
+    ctx = json.loads((root / "cdk.json").read_text())["context"]
+    assert not {"navi:account", "navi:region", "navi:alertEmail"} & set(ctx)            # nothing account-specific in the repo
+    example = (root / "navi.env.example").read_text()
+    for name in ENV_NAMES.values():
+        assert name in example or name in {"NAVI_ENABLE_PARTNER_INGEST", "NAVI_INSTANCE_TYPE", "NAVI_USE_SPOT", "NAVI_ROOT_VOLUME_GIB", "NAVI_BEDROCK_PROFILE_ID"}
+    cfg = load_config(cdk.App(context=ctx), env={"NAVI_ACCOUNT": "111111111111", "NAVI_REGION": "ap-southeast-2", "NAVI_ALERT_EMAIL": "a@b.co",
+                                                  "NAVI_BEDROCK_MODEL_ID": "google.gemma-3-12b-it", "NAVI_BEDROCK_MODEL_ARN_PATTERN": "google.gemma-3-12b-it"})
+    assert cfg.availability_zone == "ap-southeast-2a" and not cfg.enable_partner_ingest and validate(cfg) is cfg
+
+
+def test_environment_file_and_variables_override_defaults(tmp_path, monkeypatch):
+    f = tmp_path / "navi.env"
+    f.write_text("# comment\nNAVI_ACCOUNT=222222222222\nNAVI_REGION=\"ap-southeast-2\"\nNAVI_AVAILABILITY_ZONE=ap-southeast-2b\n")
+    monkeypatch.setenv("NAVI_ENV_FILE", str(f))
+    ctx = {k: v for k, v in GOOD.items() if k not in ("navi:account", "navi:region")}
     cfg = load_config(cdk.App(context=ctx))
-    assert cfg.bedrock_profile_id.startswith("global.anthropic.claude-haiku") and not cfg.enable_partner_ingest
-    assert validate(cfg) is cfg
+    assert (cfg.account, cfg.region, cfg.availability_zone) == ("222222222222", "ap-southeast-2", "ap-southeast-2b")
+    monkeypatch.setenv("NAVI_ACCOUNT", "333333333333")                      # the shell wins over the file
+    assert load_config(cdk.App(context=ctx)).account == "333333333333"
