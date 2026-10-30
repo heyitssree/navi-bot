@@ -280,3 +280,11 @@ def test_operator_scripts_never_take_secrets_as_arguments_or_print_them():
     for name in ("deploy.sh", "enable.sh", "disable.sh", "seed-db.sh", "put-config.sh"):
         assert subprocess.run(["bash", "-n", str(ROOT / "scripts" / name)]).returncode == 0
     assert "--profile" not in (ROOT / "scripts/lib.sh").read_text() and 'AWS_PROFILE="${AWS_PROFILE:-navi}"' in (ROOT / "scripts/lib.sh").read_text()
+
+
+def test_requirements_lines_are_each_a_valid_package_name():
+    import re
+
+    names = [ln.strip() for ln in (ROOT / "requirements.txt").read_text().splitlines() if ln.strip() and not ln.startswith("#")]
+    assert names and all(re.fullmatch(r"[A-Za-z0-9._-]+(\[[A-Za-z0-9,._-]+\])?([<>=!~]=?[^\s]+)?", n) for n in names), names
+    assert len(names) == len(set(names)) and "rapidfuzz" in names and "matplotlib" in names
