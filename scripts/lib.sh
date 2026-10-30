@@ -31,7 +31,7 @@ require_real_config() {
 # The single bot instance (Auto Scaling group "...BotAsg..." of exactly one).
 instance_id() {
   aws autoscaling describe-auto-scaling-groups \
-    --query "AutoScalingGroups[?contains(AutoScalingGroupName,'BotAsg')].Instances[?LifecycleState=='InService'].InstanceId | [0][0]" \
+    --query "AutoScalingGroups[?contains(AutoScalingGroupName,'BotAsg')] | [0].Instances[?LifecycleState=='InService'] | [0].InstanceId" \
     --output text
 }
 
