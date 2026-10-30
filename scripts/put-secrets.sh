@@ -6,7 +6,8 @@
 source "$(dirname "$0")/lib.sh"
 require_real_config
 
-for name in discord_token gemini_api_key_free gemini_api_key_paid partner_bot_api_key; do
+# Default: only the Discord token. Pass extra names to store more, e.g. scripts/put-secrets.sh discord_token gemini_api_key_free
+for name in ${@:-discord_token}; do
   read -rsp "Value for ${PREFIX}/${name} (blank = skip): " v; echo
   if [ -n "$v" ]; then
     V="$v" jq -n --arg n "${PREFIX}/${name}" '{Name:$n, Type:"SecureString", Overwrite:true, Value:env.V}' \
@@ -15,6 +16,6 @@ for name in discord_token gemini_api_key_free gemini_api_key_paid partner_bot_ap
   fi
   unset v
 done
-# The bot stays idle until you flip this (scripts/enable.sh).
-aws ssm put-parameter --name "${PREFIX}/run_enabled" --type String --value false >/dev/null
-echo "  ${PREFIX}/run_enabled = false"
+# The bot stays idle until you flip this (scripts/enable.sh). Created only if missing, so re-running never switches a live bot off.
+aws ssm put-parameter --name "${PREFIX}/run_enabled" --type String --value false --no-overwrite >/dev/null 2>&1 || true
+echo "  ${PREFIX}/run_enabled ready (change it with scripts/enable.sh / disable.sh)"
