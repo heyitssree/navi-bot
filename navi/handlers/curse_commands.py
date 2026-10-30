@@ -18,9 +18,8 @@ from navi.data.messages import (
 from navi.db.repos.counters import decrement_extra_actions, increment_daily_action_count
 from navi.db.repos.events import log_command_event
 from navi.db.repos.perks import has_active_perk
-from navi.db.repos.points import log_bless, log_curse
 from navi.db.repos.settings import get_config_float
-from navi.services.points import add_experience, update_boli_points
+from navi.services.curse_game import backfire_curse, land_bless, land_curse, self_curse, timeout_penalty
 from navi.services.quota import DAILY_QUOTA, UNIVERSAL_BLESSING_MESSAGES, check_cosmic_quota
 
 logger = logging.getLogger("navi.handlers.curse_commands")
@@ -52,7 +51,7 @@ async def handle_navi_command(ctx, message: discord.Message) -> bool:
 
             # --- Curse Timeout check: invoker may be blocked by a Timeout Ticket ---
             if has_active_perk(ctx.db, invoker.id, "curse_timeout"):
-                update_boli_points(ctx.db, invoker.id, -3)
+                timeout_penalty(ctx.db, invoker.id)
                 await message.reply(
                     f"🚫 {invoker.display_name}, you're under a **Timeout Ticket**! "
                     f"Casting curses is blocked. That stunt cost you **3 Boli**."
@@ -86,9 +85,7 @@ async def handle_navi_command(ctx, message: discord.Message) -> bool:
             dmg = curse_data["target_damage"]
             if first_reversed:
                 # Backfire — symmetric reversal: invoker loses, target gains
-                update_boli_points(ctx.db, invoker.id, -dmg)
-                update_boli_points(ctx.db, target.id, dmg)
-                log_curse(ctx.db, invoker.id, invoker.display_name, f"backfire_{curse_word}")
+                backfire_curse(ctx.db, invoker.id, target.id, dmg, curse_word, target_name=target.display_name)
                 if target_protected:
                     perk_label = "Curse Protection"
                 elif target_shielded:
@@ -112,10 +109,8 @@ async def handle_navi_command(ctx, message: discord.Message) -> bool:
                 )
             else:
                 # Curse lands — target loses, invoker gains
-                if not target_protected and not target_shielded:
-                    update_boli_points(ctx.db, target.id, -dmg)
-                update_boli_points(ctx.db, invoker.id, curse_data["invoker_reward"])
-                log_curse(ctx.db, target.id, target.display_name, curse_word)
+                land_curse(ctx.db, invoker.id, target.id, dmg, curse_data["invoker_reward"], curse_word,
+                           protected=bool(target_protected or target_shielded), target_name=target.display_name)
                 await message.reply(f"{curse_word} {target.display_name}")
                 logger.info(
                     "%s cursed %s [%s, %s-%d target, +%d invoker]",
@@ -134,18 +129,16 @@ async def handle_navi_command(ctx, message: discord.Message) -> bool:
                     await asyncio.sleep(delay)
                     if first_reversed:
                         potion_dmg = second_curse["target_damage"]
-                        update_boli_points(ctx.db, invoker.id, -potion_dmg)
-                        update_boli_points(ctx.db, target.id, potion_dmg)
-                        log_curse(ctx.db, invoker.id, invoker.display_name, f"potion_backfire_{second_curse['word']}")
+                        backfire_curse(ctx.db, invoker.id, target.id, potion_dmg, second_curse["word"], potion=True, target_name=target.display_name)
                         await message.channel.send(
                             f"⚡ **Potion echo!** `{second_curse['word']}` — the 2nd curse reversed! "
                             f"{invoker.display_name} loses **{potion_dmg} pts**, {target.display_name} gains **{potion_dmg} pts**."
                         )
                     else:
-                        if not target_protected and not target_shielded:
-                            update_boli_points(ctx.db, target.id, -second_curse["target_damage"])
-                        update_boli_points(ctx.db, invoker.id, second_curse["invoker_reward"])
-                        log_curse(ctx.db, target.id, target.display_name, f"potion_{second_curse['word']}")
+                        land_curse(ctx.db, invoker.id, target.id, second_curse["target_damage"],
+                                   second_curse["invoker_reward"], second_curse["word"],
+                                   protected=bool(target_protected or target_shielded), potion=True,
+                                   target_name=target.display_name)
                         await message.channel.send(
                             f"⚡ **Potion echo!** {second_curse['word']} {target.display_name} "
                             f"(2nd curse landed, +{second_curse['invoker_reward']} Boli)"
@@ -175,19 +168,15 @@ async def handle_navi_command(ctx, message: discord.Message) -> bool:
                     decrement_extra_actions(ctx.db, invoker.id)
                 dmg = curse_data["target_damage"]
                 if random.random() < reversal_chance:
-                    update_boli_points(ctx.db, invoker.id, -dmg)
-                    update_boli_points(ctx.db, target.id, dmg)
-                    log_curse(ctx.db, invoker.id, invoker.display_name, f"backfire_{curse_data['word']}")
+                    backfire_curse(ctx.db, invoker.id, target.id, dmg, curse_data["word"], target_name=target.display_name)
                     await message.reply(
                         f"The cosmos rejected your negativity, {invoker.display_name}. "
                         f"The curse reversed — you lose **{dmg} pts**, {target.display_name} gains **{dmg} pts**. {curse_data['word']}!"
                     )
                     logger.info("Curse (reply) backfired on %s [-%d / +%d]", invoker.display_name, dmg, dmg)
                 else:
-                    if not target_protected and not target_shielded:
-                        update_boli_points(ctx.db, target.id, -dmg)
-                    update_boli_points(ctx.db, invoker.id, curse_data["invoker_reward"])
-                    log_curse(ctx.db, target.id, target.display_name, curse_data["word"])
+                    land_curse(ctx.db, invoker.id, target.id, dmg, curse_data["invoker_reward"], curse_data["word"],
+                               protected=bool(target_protected or target_shielded), target_name=target.display_name)
                     await message.reply(f"{curse_data['word']} {target.display_name}")
                     logger.info("%s cursed %s via navi reply [+%d / -%d]", invoker.display_name, target.display_name, curse_data["invoker_reward"], dmg)
                 return True
@@ -197,11 +186,10 @@ async def handle_navi_command(ctx, message: discord.Message) -> bool:
         if await check_cosmic_quota(ctx, invoker, message, "curse"):
             return True
         curse_data = get_random_curse()
-        update_boli_points(ctx.db, target.id, -curse_data["target_damage"])
+        self_curse(ctx.db, target.id, curse_data["target_damage"], curse_data["word"])
         daily_count = increment_daily_action_count(ctx.db, invoker.id)
         if daily_count > DAILY_QUOTA:
             decrement_extra_actions(ctx.db, invoker.id)
-        log_curse(ctx.db, target.id, target.display_name, "proxy_navi_self")
         await message.reply(f"{curse_data['word']} {target.display_name}")
         logger.info("%s got self-cursed via navi prefix", target.display_name)
         return True
@@ -245,12 +233,9 @@ async def handle_chunk_command(ctx, message: discord.Message) -> bool:
             # Configurable universal blessing chance (default 5%)
             if random.random() < get_config_float(ctx.db, "universal_blessing_chance", 0.05):
                 _UNIVERSAL_BLESSING_BONUS = 100
-                update_boli_points(ctx.db, target.id, _UNIVERSAL_BLESSING_BONUS)
-                add_experience(ctx.db, target.id, _UNIVERSAL_BLESSING_BONUS)
-                if invoker.id != target.id:
-                    update_boli_points(ctx.db, invoker.id, _UNIVERSAL_BLESSING_BONUS)
-                    add_experience(ctx.db, invoker.id, _UNIVERSAL_BLESSING_BONUS)
-                log_bless(ctx.db, target.id, target.display_name, "universal_blessing")
+                land_bless(ctx.db, invoker.id, target.id, _UNIVERSAL_BLESSING_BONUS, _UNIVERSAL_BLESSING_BONUS,
+                           "universal_blessing",
+                           target_name=target.display_name)
                 uni_msg = random.choice(UNIVERSAL_BLESSING_MESSAGES).format(
                     caster=invoker.display_name, receiver=target.display_name
                 )
@@ -262,12 +247,8 @@ async def handle_chunk_command(ctx, message: discord.Message) -> bool:
                 return
 
             reply, target_pts, caster_pts, bless_word = _bless_target(target, award_points=True)
-            update_boli_points(ctx.db, target.id, target_pts)
-            add_experience(ctx.db, target.id, target_pts)
-            if invoker.id != target.id:
-                update_boli_points(ctx.db, invoker.id, caster_pts)
-                add_experience(ctx.db, invoker.id, caster_pts)
-            log_bless(ctx.db, target.id, target.display_name, bless_word)
+            land_bless(ctx.db, invoker.id, target.id, target_pts, caster_pts, bless_word,
+                       target_name=target.display_name)
             await message.reply(reply)
             logger.info(
                 "%s blessed %s — target +%d, caster +%d",

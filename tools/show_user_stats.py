@@ -1,3 +1,5 @@
+# NOTE (Phase 3): this one-time tool targets the pre-v2 database layout (user_stats etc.). For a v2 database
+# use tools/migrate_v2.py first; this script will not work on a v2 file.
 """
 show_user_stats.py — Read-only view of user_stats. Safe to run at any time.
 

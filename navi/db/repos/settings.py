@@ -1,82 +1,100 @@
-# navi/db/repos/settings.py - moved from schema.py (no behaviour change)
+# navi/db/repos/settings.py - JSON overrides in the settings table (defaults live in the registry)
+#
+# get_config_*/set_config_* keep their old signatures for the existing call sites; keys may be registry keys or old
+# bot_config names (resolved through the registry, unknown keys raise). The default argument is ignored: the
+# registry default is the single source of truth. Writes are upserts (the old UPDATE-only version silently did
+# nothing for rows that had never been seeded).
+
 from __future__ import annotations
 
+import json
 import logging
 import sqlite3
 
 from navi.db.connection import _db_write
+from navi.settings.registry import resolve
 
 logger = logging.getLogger("navi.db.settings")
 
 
-def get_config_float(conn: sqlite3.Connection, key: str, default: float) -> float:
-    row = conn.execute("SELECT value_float FROM bot_config WHERE key = ?", [key]).fetchone()
-    return float(row[0]) if row and row[0] is not None else default
+def get_setting(conn: sqlite3.Connection, key: str):
+    """Return the stored override for a setting, or its registry default."""
+    setting = resolve(key)
+    row = conn.execute("SELECT value FROM settings WHERE key = ?", [setting.key]).fetchone()
+    if row is None:
+        return setting.default
+    try:
+        return json.loads(row[0])
+    except (TypeError, ValueError):
+        logger.warning("Bad JSON in settings[%s]; using default", setting.key)
+        return setting.default
 
 
-def get_config_int(conn: sqlite3.Connection, key: str, default: int) -> int:
-    row = conn.execute("SELECT value_int FROM bot_config WHERE key = ?", [key]).fetchone()
-    return int(row[0]) if row and row[0] is not None else default
+def set_setting(conn: sqlite3.Connection, key: str, value, updated_by: int | None = None) -> None:
+    """Store an override (JSON) and record a setting_change event with the old and new value."""
+    setting = resolve(key)
+    old = get_setting(conn, setting.key)
+
+    def _write() -> None:
+        conn.execute(
+            """
+            INSERT INTO settings (key, value, updated_by, updated_at) VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+            ON CONFLICT (key) DO UPDATE SET value = excluded.value, updated_by = excluded.updated_by,
+                                            updated_at = CURRENT_TIMESTAMP
+            """,
+            [setting.key, json.dumps(value), updated_by],
+        )
+        conn.execute(
+            "INSERT INTO events (kind, user_id, name, detail) VALUES ('setting_change', ?, ?, ?)",
+            [updated_by, setting.key, json.dumps({"old": old, "new": value})],
+        )
+        conn.commit()
+
+    _db_write(_write)
 
 
-def set_config_float(conn: sqlite3.Connection, key: str, value: float) -> None:
-    _db_write(lambda: (
-        conn.execute("UPDATE bot_config SET value_float = ? WHERE key = ?", [value, key]),
-        conn.commit(),
-    ))
+def get_config_float(conn: sqlite3.Connection, key: str, default: float = 0.0) -> float:
+    return float(get_setting(conn, key))
 
 
-def set_config_int(conn: sqlite3.Connection, key: str, value: int) -> None:
-    _db_write(lambda: (
-        conn.execute("UPDATE bot_config SET value_int = ? WHERE key = ?", [value, key]),
-        conn.commit(),
-    ))
+def get_config_int(conn: sqlite3.Connection, key: str, default: int = 0) -> int:
+    return int(get_setting(conn, key))
 
 
 def get_config_str(conn: sqlite3.Connection, key: str, default: str = "") -> str:
-    row = conn.execute("SELECT value_str FROM bot_config WHERE key = ?", [key]).fetchone()
-    return str(row[0]) if row and row[0] is not None else default
+    return str(get_setting(conn, key))
+
+
+def set_config_float(conn: sqlite3.Connection, key: str, value: float) -> None:
+    set_setting(conn, key, float(value))
+
+
+def set_config_int(conn: sqlite3.Connection, key: str, value: int) -> None:
+    setting = resolve(key)
+    set_setting(conn, key, bool(value) if setting.kind == "bool" else int(value))
 
 
 def set_config_str(conn: sqlite3.Connection, key: str, value: str) -> None:
-    _db_write(lambda: (
-        conn.execute(
-            "INSERT INTO bot_config (key, value_str) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value_str = excluded.value_str",
-            [key, value],
-        ),
-        conn.commit(),
-    ))
+    set_setting(conn, key, str(value))
 
 
 def get_all_configs(conn: sqlite3.Connection) -> dict:
-    rows = conn.execute("SELECT key, value_str, value_float, value_int FROM bot_config").fetchall()
-    config = {}
-    for r in rows:
-        key = r[0]
-        if r[2] is not None:
-            config[key] = r[2]
-        elif r[3] is not None:
-            config[key] = r[3]
-        else:
-            config[key] = r[1]
-    return config
+    """Effective values of every non-hidden setting (override or default), keyed by registry key."""
+    from navi.settings.registry import SETTINGS
+
+    return {s.key: get_setting(conn, s.key) for s in SETTINGS if not s.hidden}
 
 
 def get_testing_guilds(conn: sqlite3.Connection) -> set[int]:
     """Return the set of guild IDs with testing mode enabled."""
-    rows = conn.execute("SELECT guild_id FROM testing_guilds").fetchall()
-    return {int(r[0]) for r in rows}
+    return {int(g) for g in get_setting(conn, "system.testing_guilds")}
 
 
 def set_testing_guild(conn: sqlite3.Connection, guild_id: int, enabled: bool) -> None:
     """Enable or disable testing mode for a guild."""
+    guilds = get_testing_guilds(conn)
     if enabled:
-        _db_write(lambda: (
-            conn.execute("INSERT OR IGNORE INTO testing_guilds (guild_id) VALUES (?)", [guild_id]),
-            conn.commit(),
-        ))
+        guilds.add(int(guild_id))
     else:
-        _db_write(lambda: (
-            conn.execute("DELETE FROM testing_guilds WHERE guild_id = ?", [guild_id]),
-            conn.commit(),
-        ))
+        guilds.discard(int(guild_id))
+    set_setting(conn, "system.testing_guilds", sorted(guilds))

@@ -1,3 +1,5 @@
+# NOTE (Phase 3): this one-time tool targets the pre-v2 database layout (user_stats etc.). For a v2 database
+# use tools/migrate_v2.py first; this script will not work on a v2 file.
 """
 tools/restore_user_stats.py — Emergency restore of user_stats from last known-good snapshot.
 

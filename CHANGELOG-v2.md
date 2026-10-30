@@ -133,3 +133,60 @@ knowledge,market,media,games,events,perks,settings}.py`, `llm/{base,gemini,route
 `/navi /ping /rank /leaderboard /mypoints /gift /lucky_draw /summ /kanmanilla /audit /mod_tldr /strike /help /health /temp_vc /my_media`,
 `/market view|buy|sell|holdings|history`, `/shop view|buy`, `/flip /roll_dice /roulette /slots`, `/admin ...`, the three message context menus,
 `navi @user`, reply-`navi`, `navi`, `chunk`, `;;shortcut`, an @mention, a curse word, the 📰 link-summary reaction, member join, voice-state temp-VC cleanup.
+
+## Phase 3 - Data model v2 (branch `v2/phase-3-data-model`)
+
+28 tables become 16 (plus `schema_version`) in `navi.db`, and a separate `privacy.db`. The bot now runs only on the v2 layout and
+refuses to start on a pre-v2 file (`LegacyDatabaseError` with the exact migration command). Gemini verification was skipped as agreed.
+
+### Done
+- `navi/db/migrations/0001_v2.sql` is the v2 DDL (users, daily_counters, points_ledger, holdings, perks, media, app_emojis, game_results,
+  prediction_history, events, content, knowledge, market_items, market_prices, settings, permissions). The old 28-table DDL moved to
+  `tools/legacy_schema.py` (tests and the migration tool use it; the bot does not). PRAGMAs now include `busy_timeout=5000`.
+- `services/points.py` is the only writer: `award()` updates the balance/XP and appends a `points_ledger` row in ONE transaction
+  (rollback on any failure; duplicate `(reason, ref)` is a no-op, which makes partner awards idempotent). Every call site (about 60) now
+  states a reason: slang, game, market, shop, gift_sent/received, lucky_draw, admin, prediction, partner_award, curse_*/bless_*, curse_word_said.
+- `services/curse_game.py` records the curse/bless outcomes in the ledger; the odds, protection bounce, quotas and potion echo are untouched.
+- Leaderboards: overall from `users` (native + partner), most cursed/blessed from ledger counts by reason, FFF/Survival from `game_results`;
+  all with a deterministic `user_id` tiebreak.
+- `services/retention.py` (daily task `retention`): events > 90 days, prediction_history beyond 20 per user, daily_counters > 14 days,
+  ledger `slang`/`game` rows > 180 days compacted to one rollup row per user, pool and reason (sums and balances still reconcile).
+- Settings: `settings/registry.py` (every existing knob, `legacy_keys`, `INTENTIONALLY_DROPPED`) + `settings` table (JSON overrides, `updated_by`,
+  an `events` row `setting_change` with old/new on every write). Existing `get_config_*`/`feat()` call sites keep working through the registry
+  (old names and registry keys are interchangeable; unknown keys raise). A test checks that every key used in the code is registered.
+  The full inventory and the /admin panel are Phase 4.
+- LLM router calls are recorded as `events` (`llm_call`) through the (now wired) `on_event` hook.
+- `tools/migrate_v2.py --src --dst --privacy`: reads the source via the SQLite backup API (never modifies it), refuses to overwrite,
+  migrates history (gifts with real amounts, curse/bless logs at delta 0 with the word in `detail`, partner awards with `ref` = game_id),
+  inserts one `opening_balance` row per user and pool, creates `privacy.db`, and verifies the invariants below (exit code 1 on any failure).
+- `data/v2/navi.db` was produced from the dev copy and `.env` now points `DB_PATH` at it (the dev copy and the live DB are untouched).
+
+### Invariants verified by the tool (all hold on the dev copy; also covered by `tests/phase3` on a populated synthetic legacy DB)
+user count; native balance, partner balance, XP, strikes and prediction count per user; per user and pool `SUM(ledger.delta) = balance`
+(and XP); equal counts for holdings, perks, media, knowledge, market items, price rows, app emojis, prediction history; `game_results` = fff + survival;
+events = command + session + api_call rows; top 10 of the overall, most-cursed, most-blessed, FFF (global and per guild) and Survival leaderboards;
+every `bot_config` key is mapped or intentionally dropped (the tool raises on an unknown key).
+
+### Decisions and deviations (please review)
+- **Migration file is `0001_v2.sql`, not `0001_baseline.sql` + `0002_v2.sql`.** Fresh databases get v2 directly; legacy files are converted into a new
+  file by the tool. The Phase 2 `m0001_baseline.py` is gone (kept as `tools/legacy_schema.py`).
+- `media` got a `media_type` column (emoji/sticker): the context menus and `/my_media` filter on it and the spec DDL had no place for it.
+- The unique content-key index excludes `score_comment` rows, because the game keeps several comments per score bucket and picks one at random.
+- Log-only users: people who were cursed or blessed but never posted had log rows and no `user_stats` row. They get a zero-balance `users` row
+  (so their history and leaderboard place survive), so "same user count" is checked as `user_stats + log-only users` (2 on the dev copy).
+  Going forward the curse/bless flow creates the target's profile, so such curses still count (a curse on a never-posted target now also deducts
+  its points; before it was a silent no-op for the balance). Partner points of users without a profile were never visible and are skipped (noted in the report).
+- Legacy "most cursed" counted every `curse_logs` word that did not start with `backfire_`/`proxy_` (so also `potion_backfire_*`, and words people merely
+  said). The migration keeps that rule; new events are cleaner: `potion` backfires are `curse_backfire`, said words are `curse_word_said`, and the board
+  counts `curse_received` + `curse_word_said`. Legacy grouped by (user_id, username), so a renamed user appeared twice; v2 groups by user_id.
+- `feature_navi_challenge` / `feature_type_race` are not migrated (the old seed said 1, the code default said 0): the registry default (off) wins.
+  `WEATHER_ALERT_TIME` and `reversal_chance_owner` are intentionally dropped.
+- **Fixed by design:** `set_config_float` was an UPDATE-only no-op for never-seeded rows (Phase 0 finding); settings are now upserts.
+- Not migrated (not in the spec's table list): `user_stats.last_*`/daily columns are folded into `daily_counters`; `gift_log` rows to users with no profile are skipped.
+- Old `username` columns are gone (`users.display_name` is the single source); game leaderboards join `users`.
+
+### Not done / for the next phases
+- Phase 3 gate item "point the dev bot at v2 and repeat the Phase 2 smoke checklist" needs a Discord token and test server: not run here
+  (the command surface test, startup test against a fresh v2 DB, and 560+ tests pass).
+- Settings reads still use the legacy call-site names; Phase 4 replaces them with registry keys and builds the panel.
+- `AppContext.privacy_db` and the privacy gate arrive in Phase 6 (the file and table exist and are created by the migration).

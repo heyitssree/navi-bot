@@ -17,7 +17,6 @@ from navi.db.repos.points import (
     get_curse_leaderboard,
     get_level_from_points,
     points_for_level,
-    record_gift,
 )
 from navi.db.repos.settings import get_config_str
 from navi.db.repos.users import (
@@ -29,7 +28,7 @@ from navi.db.repos.users import (
 )
 from navi.services.levels import get_level_title
 from navi.services.lucky_draw import run_lucky_draw
-from navi.services.points import update_boli_points
+from navi.services.points import award
 from navi.services.templates import get_template
 
 logger = logging.getLogger("navi.cogs.economy")
@@ -322,10 +321,9 @@ class EconomyCog(commands.Cog):
             return
 
         # Execute transfer (gifts do NOT award XP — anti-farming)
-        update_boli_points(ctx.db, sender_id, -actual_amount)
+        award(ctx.db, sender_id, -actual_amount, reason="gift_sent", counterparty_id=actual_recipient.id)
         upsert_user(ctx.db, actual_recipient.id, actual_recipient.display_name)
-        update_boli_points(ctx.db, actual_recipient.id, actual_amount)
-        record_gift(ctx.db, sender_id, actual_recipient.id, actual_amount)
+        award(ctx.db, actual_recipient.id, actual_amount, reason="gift_received", counterparty_id=sender_id)
 
         surprise_note = " *(random pick — they used /navi recently!)*" if random_pick else ""
         msg = random.choice(_GIFT_TEMPLATES).format(

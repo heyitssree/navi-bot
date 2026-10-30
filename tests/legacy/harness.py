@@ -70,11 +70,11 @@ def seed(db, *users):
 
 
 def points(db, uid):
-    return db.execute("SELECT boli_points FROM user_stats WHERE user_id=?", [uid]).fetchone()[0]
+    return db.execute("SELECT boli_points FROM users WHERE user_id=?", [uid]).fetchone()[0]
 
 
 def xp(db, uid):
-    return db.execute("SELECT experience FROM user_stats WHERE user_id=?", [uid]).fetchone()[0]
+    return db.execute("SELECT experience FROM users WHERE user_id=?", [uid]).fetchone()[0]
 
 
 class FakeLLM:

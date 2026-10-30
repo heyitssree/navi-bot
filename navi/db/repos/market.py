@@ -142,7 +142,7 @@ def record_price_history(
     """Persist a daily price point for history display."""
     def _write() -> None:
         conn.execute(
-            "INSERT INTO market_price_history (item_id, price, recorded_at) VALUES (?, ?, ?)",
+            "INSERT INTO market_prices (item_id, price, recorded_at) VALUES (?, ?, ?)",
             [item_id, price, date_str],
         )
         conn.commit()
@@ -157,7 +157,7 @@ def get_price_history(
     """Return the last N days of price history for an item."""
     rows = conn.execute(
         """
-        SELECT CAST(recorded_at AS TEXT), price FROM market_price_history
+        SELECT CAST(recorded_at AS TEXT), price FROM market_prices
         WHERE item_id = ?
         ORDER BY recorded_at DESC LIMIT ?
         """,
@@ -180,7 +180,7 @@ def buy_holding(
     def _write() -> None:
         conn.execute(
             """
-            INSERT INTO user_holdings (user_id, item_id, quantity, purchase_price, expires_at)
+            INSERT INTO holdings (user_id, item_id, quantity, purchase_price, expires_at)
             VALUES (?, ?, ?, ?, ?)
             """,
             [user_id, item_id, quantity, purchase_price, expires_str],
@@ -195,7 +195,7 @@ def get_user_holdings(conn: sqlite3.Connection, user_id: int) -> list[dict]:
         """
         SELECT h.id, h.item_id, m.name, m.emoji, m.current_price,
                h.quantity, h.purchase_price, h.purchased_at, h.expires_at
-        FROM user_holdings h
+        FROM holdings h
         JOIN market_items m ON m.item_id = h.item_id
         WHERE h.user_id = ? AND h.expires_at > CURRENT_TIMESTAMP
         ORDER BY h.purchased_at
@@ -221,7 +221,7 @@ def get_user_holding_for_item(
     rows = conn.execute(
         """
         SELECT id, quantity, purchase_price, purchased_at, expires_at
-        FROM user_holdings
+        FROM holdings
         WHERE user_id = ? AND item_id = ? AND expires_at > CURRENT_TIMESTAMP
         ORDER BY purchased_at ASC
         """,
@@ -244,10 +244,10 @@ def reduce_holding(
     """Reduce quantity of a holding row, deleting it if it reaches 0."""
     def _write() -> None:
         conn.execute(
-            "UPDATE user_holdings SET quantity = quantity - ? WHERE id = ?",
+            "UPDATE holdings SET quantity = quantity - ? WHERE id = ?",
             [qty_to_remove, holding_id],
         )
-        conn.execute("DELETE FROM user_holdings WHERE id = ? AND quantity <= 0", [holding_id])
+        conn.execute("DELETE FROM holdings WHERE id = ? AND quantity <= 0", [holding_id])
         conn.commit()
     _db_write(_write)
 
@@ -259,7 +259,7 @@ def expire_stale_holdings(
     rows = conn.execute(
         """
         SELECT h.user_id, m.name, m.emoji, h.quantity, h.purchase_price
-        FROM user_holdings h
+        FROM holdings h
         JOIN market_items m ON m.item_id = h.item_id
         WHERE h.expires_at <= CURRENT_TIMESTAMP
         """
@@ -270,7 +270,7 @@ def expire_stale_holdings(
     ]
     if expired:
         _db_write(lambda: (
-            conn.execute("DELETE FROM user_holdings WHERE expires_at <= CURRENT_TIMESTAMP"),
+            conn.execute("DELETE FROM holdings WHERE expires_at <= CURRENT_TIMESTAMP"),
             conn.commit(),
         ))
     return expired

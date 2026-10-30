@@ -21,17 +21,17 @@ def save_local_media(
     discord_name: str | None = None,
     animated: bool = False,
 ) -> None:
-    """Insert a local media entry, replacing any existing entry for the same shortcut."""
+    """Insert a media entry, replacing any existing entry for the same shortcut. file_path is stored as location."""
     def _write() -> None:
         conn.execute(
             """
-            INSERT INTO local_media
-                (shortcut, user_id, file_path, media_type, source_url, created_at,
+            INSERT INTO media
+                (shortcut, owner_id, location, media_type, source_url, created_at,
                  storage_type, discord_id, discord_name, animated)
             VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?, ?, ?, ?)
             ON CONFLICT (shortcut) DO UPDATE SET
-                user_id = excluded.user_id,
-                file_path = excluded.file_path,
+                owner_id = excluded.owner_id,
+                location = excluded.location,
                 media_type = excluded.media_type,
                 source_url = excluded.source_url,
                 created_at = CURRENT_TIMESTAMP,
@@ -51,11 +51,11 @@ def get_local_media(
     conn: sqlite3.Connection,
     shortcut: str,
 ) -> dict | None:
-    """Return local media entry for the given shortcut, or None if not found."""
+    """Return the media entry for the given shortcut, or None if not found."""
     row = conn.execute(
-        """SELECT shortcut, user_id, file_path, media_type, source_url, created_at,
+        """SELECT shortcut, owner_id, location, media_type, source_url, created_at,
                   storage_type, discord_id, discord_name, animated
-           FROM local_media WHERE shortcut = ?""",
+           FROM media WHERE shortcut = ?""",
         [shortcut],
     ).fetchone()
     if not row:
@@ -75,16 +75,14 @@ def get_local_media(
 
 
 def get_user_local_media_count(conn: sqlite3.Connection, user_id: int) -> int:
-    """Return how many local media entries the user has saved."""
-    row = conn.execute(
-        "SELECT COUNT(*) FROM local_media WHERE user_id = ?", [user_id]
-    ).fetchone()
+    """Return how many media entries the user has saved."""
+    row = conn.execute("SELECT COUNT(*) FROM media WHERE owner_id = ?", [user_id]).fetchone()
     return row[0] if row else 0
 
 
 def get_global_local_media_count(conn: sqlite3.Connection) -> int:
-    """Return total number of local media entries stored globally."""
-    row = conn.execute("SELECT COUNT(*) FROM local_media").fetchone()
+    """Return total number of media entries stored globally."""
+    row = conn.execute("SELECT COUNT(*) FROM media").fetchone()
     return row[0] if row else 0
 
 
@@ -93,29 +91,20 @@ def list_user_local_media(
     user_id: int,
     media_type: str | None = None,
 ) -> list[dict]:
-    """Return all local media entries owned by a user, newest first.
+    """Return all media entries owned by a user, newest first.
 
     Includes storage_type, discord_id, discord_name, and animated so callers
     can build emoji previews without a second per-row DB fetch.
     """
+    sql = """SELECT shortcut, location, media_type, created_at,
+                    storage_type, discord_id, discord_name, animated
+             FROM media WHERE owner_id = ?"""
+    params: list = [user_id]
     if media_type:
-        rows = conn.execute(
-            """SELECT shortcut, file_path, media_type, created_at,
-                      storage_type, discord_id, discord_name, animated
-               FROM local_media
-               WHERE user_id = ? AND media_type = ?
-               ORDER BY created_at DESC""",
-            [user_id, media_type],
-        ).fetchall()
-    else:
-        rows = conn.execute(
-            """SELECT shortcut, file_path, media_type, created_at,
-                      storage_type, discord_id, discord_name, animated
-               FROM local_media
-               WHERE user_id = ?
-               ORDER BY created_at DESC""",
-            [user_id],
-        ).fetchall()
+        sql += " AND media_type = ?"
+        params.append(media_type)
+    sql += " ORDER BY created_at DESC, shortcut ASC"
+    rows = conn.execute(sql, params).fetchall()
     return [
         {
             "shortcut":     r[0],
@@ -132,18 +121,20 @@ def list_user_local_media(
 
 
 def delete_local_media(conn: sqlite3.Connection, shortcut: str) -> bool:
-    """Delete a local media entry by shortcut. Returns True if a row was deleted."""
-    existing = conn.execute(
-        "SELECT 1 FROM local_media WHERE shortcut = ?", [shortcut]
-    ).fetchone()
+    """Delete a media entry by shortcut. Returns True if a row was deleted."""
+    existing = conn.execute("SELECT 1 FROM media WHERE shortcut = ?", [shortcut]).fetchone()
     if not existing:
         return False
     _db_write(lambda: (
-        conn.execute("DELETE FROM local_media WHERE shortcut = ?", [shortcut]),
+        conn.execute("DELETE FROM media WHERE shortcut = ?", [shortcut]),
         conn.commit(),
     ))
     return True
 
+
+# ---------------------------------------------------------------------------
+# Application emoji LRU tracking
+# ---------------------------------------------------------------------------
 
 _APP_EMOJI_LIMIT = 2000
 

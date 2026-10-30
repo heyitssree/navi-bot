@@ -79,10 +79,10 @@ def create_app(db_conn: sqlite3.Connection, allowed_guild_id: int | None) -> Any
         )
         return None
 
-    from navi.db.repos.points import get_recent_partner_logs, log_partner_score, partner_score_exists
+    from navi.db.repos.points import get_recent_partner_logs, partner_score_exists
     from navi.db.repos.settings import get_config_int
     from navi.db.repos.users import upsert_user
-    from navi.services.points import add_experience, add_external_boli
+    from navi.services.points import add_partner_points
 
     API_KEY = os.getenv("PARTNER_BOT_API_KEY", "")
     if not API_KEY:
@@ -128,30 +128,16 @@ def create_app(db_conn: sqlite3.Connection, allowed_guild_id: int | None) -> Any
         boli = _normalize_score(payload.points)
         xp = max(_MIN_XP, int(boli * _XP_RATIO)) if boli > 0 else 0
 
-        # Ensure user row exists, then record in isolated external table
+        # Ensure user row exists, then record in the partner pool (one ledger row: points + XP, idempotent on game_id)
         upsert_user(db_conn, payload.user_id, payload.username)
-        add_external_boli(
+        add_partner_points(
             db_conn,
-            user_id=payload.user_id,
-            username=payload.username,
-            points=boli,
+            payload.user_id,
+            boli,
             game_id=game_id,
             source_game=payload.game_type,
-        )
-        if boli > 0:
-            add_experience(db_conn, payload.user_id, xp)
-
-        # Log
-        log_partner_score(
-            db_conn,
-            game_id=game_id,
-            user_id=payload.user_id,
-            guild_id=payload.guild_id,
-            username=payload.username,
-            raw_points=payload.points,
-            boli_awarded=boli,
-            xp_awarded=xp,
-            game_type=payload.game_type,
+            xp=xp if boli > 0 else 0,
+            extra={"raw_points": payload.points, "guild_id": payload.guild_id},
         )
 
         logger.info(
@@ -217,42 +203,27 @@ def create_app(db_conn: sqlite3.Connection, allowed_guild_id: int | None) -> Any
             if amount <= 0:
                 continue
 
-            # Fetch username from existing user_stats row (best-effort; may be empty string)
+            # Best-effort username from the existing user row (may be empty string)
             username = ""
             try:
-                row = db_conn.execute(
-                    "SELECT username FROM user_stats WHERE user_id = ?", (user_id,)
-                ).fetchone()
+                row = db_conn.execute("SELECT display_name FROM users WHERE user_id = ?", (user_id,)).fetchone()
                 if row:
                     username = row[0] or ""
             except Exception:
                 pass
 
             upsert_user(db_conn, user_id, username)
-            add_external_boli(
+            xp = max(_MIN_XP, int(amount * _XP_RATIO))
+            add_partner_points(
                 db_conn,
-                user_id=user_id,
-                username=username,
-                points=amount,
+                user_id,
+                amount,
                 game_id=f"{payload.game_id}:{discord_id_str}",
                 source_game=payload.source_game,
+                xp=xp,
+                extra={"raw_points": amount},
             )
-            xp = max(_MIN_XP, int(amount * _XP_RATIO))
-            add_experience(db_conn, user_id, xp)
             awarded[discord_id_str] = amount
-
-        # Write a single audit log row for the whole game
-        log_partner_score(
-            db_conn,
-            game_id=payload.game_id,
-            user_id=0,
-            guild_id=0,
-            username="[activity-batch]",
-            raw_points=sum(payload.awards.values()),
-            boli_awarded=sum(awarded.values()),
-            xp_awarded=0,
-            game_type=payload.source_game,
-        )
 
         logger.info(
             "Internal boli award: game_id=%s source=%s awards=%s",

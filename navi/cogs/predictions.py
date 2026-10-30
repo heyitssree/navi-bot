@@ -14,7 +14,7 @@ from navi.data.messages import BOT_LOOP_CURSE_REPLIES
 from navi.db.repos.content import get_todays_user_prediction
 from navi.db.repos.users import get_user_profile
 from navi.services.levels import maybe_announce_levelup
-from navi.services.points import add_experience, update_boli_points
+from navi.services.points import award
 from navi.services.predictions import format_cached_spam_reply, get_navi_prediction, get_user_minute_count
 from navi.services.templates import get_template
 
@@ -86,8 +86,7 @@ class PredictionsCog(commands.Cog):
 
         # +2 Boli Points + XP for using /navi (only on first fresh call)
         if usage_count == 1:
-            update_boli_points(ctx.db, interaction.user.id, 2)
-            add_experience(ctx.db, interaction.user.id, 2)
+            award(ctx.db, interaction.user.id, 2, 2, reason="prediction")
             logger.info("%s used /navi → +2 Boli Points +2 XP", interaction.user.display_name)
             if interaction.channel:
                 await maybe_announce_levelup(ctx, 

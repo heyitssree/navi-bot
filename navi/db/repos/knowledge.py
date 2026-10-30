@@ -105,30 +105,30 @@ _LOCAL_KNOWLEDGE_DATA: list[tuple[str, str, str, str]] = [
 
 
 def seed_local_knowledge(conn: sqlite3.Connection, force: bool = False) -> None:
-    """Populate local_knowledge table from curated data. Skips if already seeded unless force=True."""
-    count = conn.execute("SELECT COUNT(*) FROM local_knowledge").fetchone()[0]
+    """Populate the knowledge table from curated data. Skips if already seeded unless force=True."""
+    count = conn.execute("SELECT COUNT(*) FROM knowledge").fetchone()[0]
     if count > 0 and not force:
-        logger.info("local_knowledge already seeded (%d rows) — skipping.", count)
+        logger.info("knowledge already seeded (%d rows) — skipping.", count)
         return
 
     def _write() -> None:
-        conn.execute("DELETE FROM local_knowledge")
+        conn.execute("DELETE FROM knowledge")
         conn.executemany(
             """
-            INSERT INTO local_knowledge (id, category, term, description, tags)
-            VALUES (NULL, ?, ?, ?, ?)
+            INSERT OR IGNORE INTO knowledge (category, term, description, tags, status)
+            VALUES (?, ?, ?, ?, 'active')
             """,
             [(cat, term, desc, tags) for cat, term, desc, tags in _LOCAL_KNOWLEDGE_DATA],
         )
         conn.commit()
 
     _db_write(_write)
-    logger.info("Seeded local_knowledge with %d entries.", len(_LOCAL_KNOWLEDGE_DATA))
+    logger.info("Seeded knowledge with %d entries.", len(_LOCAL_KNOWLEDGE_DATA))
 
 
 def get_random_knowledge_terms(conn: sqlite3.Connection, num_categories: int = 3) -> list[dict]:
     """Return one random term per randomly-selected category for Navi Challenge."""
-    cats = conn.execute("SELECT DISTINCT category FROM local_knowledge").fetchall()
+    cats = conn.execute("SELECT DISTINCT category FROM knowledge WHERE status = 'active'").fetchall()
     cat_list = [r[0] for r in cats]
     if not cat_list:
         return []
@@ -136,7 +136,7 @@ def get_random_knowledge_terms(conn: sqlite3.Connection, num_categories: int = 3
     results = []
     for cat in selected_cats:
         rows = conn.execute(
-            "SELECT term, description FROM local_knowledge WHERE category = ? ORDER BY RANDOM() LIMIT 1",
+            "SELECT term, description FROM knowledge WHERE category = ? AND status = 'active' ORDER BY RANDOM() LIMIT 1",
             [cat],
         ).fetchall()
         if rows:

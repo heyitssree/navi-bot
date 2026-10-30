@@ -1,3 +1,5 @@
+# NOTE (Phase 3): this one-time tool targets the pre-v2 database layout (user_stats etc.). For a v2 database
+# use tools/migrate_v2.py first; this script will not work on a v2 file.
 """
 import_from_csv.py — One-time migration: import user_stats from a CSV backup into a fresh SQLite DB.
 

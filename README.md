@@ -78,10 +78,10 @@ navi/
   handlers/pipeline.py + handlers/   # the on_message chain (order documented in the pipeline docstring)
   services/                          # points (the only code that changes balances), levels, quota, backup, loops
   llm/                               # base types, GeminiProvider, router (budget/cooldowns/breaker/safety), prompts/
-  db/                                # connection, schema_version migrations, repos/ (queries by area)
+  db/                                # connection, schema_version migrations (0001_v2.sql), repos/ (queries by area)
   data/                              # curse_data, glossary, messages, slang_data.json, templates.json
   api/partner.py                     # partner score API (FastAPI)
-  settings/store.py                  # feature toggle cache
+  settings/                          # registry.py (every setting declared once) + store.py (cache over the settings table)
 tests/  tools/  scripts/
 ```
 
@@ -91,6 +91,7 @@ tests/  tools/  scripts/
 pip install -r requirements-dev.txt
 pytest
 python -m tools.db_report         # row counts for $DB_PATH
+python -m tools.migrate_v2 --src old.db --dst data/v2/navi.db --privacy data/v2/privacy.db   # pre-v2 -> v2 (verifies invariants)
 ```
 
 Point `DB_PATH` at a copy of the database, never the live file. See `SETUP.md` and `DEPLOYMENT.md` for hosting.

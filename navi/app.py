@@ -14,7 +14,7 @@ from navi.api.partner import run_api_server
 from navi.config import Config
 from navi.context import AppContext
 from navi.db.connection import init_db
-from navi.db.repos.events import log_command_event, log_session_event
+from navi.db.repos.events import log_command_event, log_llm_call, log_session_event
 from navi.db.repos.knowledge import seed_local_knowledge
 from navi.handlers import pipeline
 from navi.llm.gemini import GeminiProvider
@@ -25,6 +25,7 @@ from navi.services.lucky_draw import lucky_draw_loop
 from navi.services.market_loop import market_hourly_loop
 from navi.services.owner import dm_owner
 from navi.services.predictions import make_cache_lookup
+from navi.services.retention import retention_loop
 from navi.services.slang_scorer import load_slang_data
 from navi.services.templates import load_templates
 from navi.settings.store import FeatureFlags
@@ -149,6 +150,10 @@ def register_events(bot: NaviBot, ctx: AppContext) -> None:
             rpm_limit=10,
             free_tier_mode=ctx.config.free_tier_mode,
         )
+        ctx.llm.on_event = lambda e: log_llm_call(
+            ctx.db, e["provider"], e["model"], e["purpose"], e["outcome"], e["input_tokens"], e["output_tokens"],
+            e["latency_ms"],
+        )
         loop = asyncio.get_running_loop()
         ctx.llm.on_config_error = lambda text: loop.create_task(dm_owner(ctx, text))
         await ctx.llm.verify()
@@ -168,6 +173,7 @@ def register_events(bot: NaviBot, ctx: AppContext) -> None:
         start_task(ctx, "last_seen_flush", last_seen_flush_loop(ctx))
         start_task(ctx, "lucky_draw", lucky_draw_loop(ctx))
         start_task(ctx, "market_hourly", market_hourly_loop(ctx))
+        start_task(ctx, "retention", retention_loop(ctx))
         start_task(ctx, "partner_api", run_api_server(ctx.db, allowed_guild_id=ctx.config.guild_id))
 
         await bot.tree.sync()

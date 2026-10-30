@@ -74,7 +74,7 @@ async def test_every_message_tracks_last_seen_and_flush_is_one_executemany(db):
     a, b = FakeUser(1, "a"), FakeUser(2, "b")
     for u in (a, b):
         upsert_user(db, u.id, u.display_name)
-    db.execute("UPDATE user_stats SET last_seen='2020-01-01 00:00:00'")
+    db.execute("UPDATE users SET last_seen='2020-01-01 00:00:00'")
     db.commit()
     ctx.state.seen_users.update({1, 2})  # the first-message-per-session upsert already wrote last_seen
     for _ in range(3):
@@ -129,7 +129,7 @@ async def test_kanmanilla_uses_db_no_channel_scan(db):
     t = FakeUser(7, "gone")
     upsert_user(db, 7, "gone")
     old = (datetime.now(timezone.utc) - timedelta(days=9)).strftime("%Y-%m-%d %H:%M:%S")
-    db.execute("UPDATE user_stats SET last_seen=? WHERE user_id=7", [old]); db.commit()
+    db.execute("UPDATE users SET last_seen=? WHERE user_id=7", [old]); db.commit()
     llm, inter, scanned = await _kan(db, t)
     assert scanned == []
     assert "9" in llm.requests[0]["req"].prompt
@@ -145,7 +145,7 @@ async def test_kanmanilla_scans_when_no_record(db):
 async def test_kanmanilla_prefers_pending_in_memory(db):
     t = FakeUser(9, "recent")
     upsert_user(db, 9, "recent")
-    db.execute("UPDATE user_stats SET last_seen='2020-01-01 00:00:00' WHERE user_id=9"); db.commit()
+    db.execute("UPDATE users SET last_seen='2020-01-01 00:00:00' WHERE user_id=9"); db.commit()
     now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
     llm, inter, scanned = await _kan(db, t, pending={9: now})
     assert llm.requests == []  # seen <2 days ago -> short-circuit message

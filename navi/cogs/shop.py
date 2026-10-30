@@ -18,7 +18,7 @@ from navi.db.repos.counters import (
 )
 from navi.db.repos.perks import get_perk_expiry, grant_perk
 from navi.db.repos.users import get_user_profile, upsert_user
-from navi.services.points import update_boli_points
+from navi.services.points import award
 from navi.services.quota import HAS_EXTRAS_MESSAGES
 
 logger = logging.getLogger("navi.cogs.shop")
@@ -178,7 +178,7 @@ class ShopGroup(app_commands.Group):
 
         # --- Curse Protection ---
         if item == "curse_protection":
-            update_boli_points(ctx.db, interaction.user.id, -cost)
+            award(ctx.db, interaction.user.id, -cost, reason="shop", detail=item)
             grant_perk(ctx.db, interaction.user.id, "curse_protection", duration_hours=24)
             expiry = get_perk_expiry(ctx.db, interaction.user.id, "curse_protection")
             expiry_utc = expiry.replace(tzinfo=timezone.utc) if expiry else None
@@ -213,7 +213,7 @@ class ShopGroup(app_commands.Group):
                 )
                 return
 
-            update_boli_points(ctx.db, interaction.user.id, -cost)
+            award(ctx.db, interaction.user.id, -cost, reason="shop", detail=item)
             upsert_user(ctx.db, interaction.user.id, interaction.user.display_name, rashi=matched)
             await interaction.response.send_message(
                 f"🌟 **Rashi updated!** {interaction.user.mention}, your sign is now **{matched}**.\n"
@@ -254,7 +254,7 @@ class ShopGroup(app_commands.Group):
                 )
                 return
 
-            update_boli_points(ctx.db, interaction.user.id, -cost)
+            award(ctx.db, interaction.user.id, -cost, reason="shop", detail=item)
             add_extra_actions(ctx.db, interaction.user.id, 10)
             increment_daily_refill_count(ctx.db, interaction.user.id)
             next_cost = 50 if refill_count == 0 else "N/A (max reached)"
@@ -271,7 +271,7 @@ class ShopGroup(app_commands.Group):
 
         # --- Deflector Shield ---
         elif item == "deflector_shield":
-            update_boli_points(ctx.db, interaction.user.id, -cost)
+            award(ctx.db, interaction.user.id, -cost, reason="shop", detail=item)
             grant_perk(ctx.db, interaction.user.id, "deflector_shield", duration_hours=0.5)
             expiry = get_perk_expiry(ctx.db, interaction.user.id, "deflector_shield")
             expiry_utc = expiry.replace(tzinfo=timezone.utc) if expiry else None
@@ -297,7 +297,7 @@ class ShopGroup(app_commands.Group):
             if target.id == interaction.user.id:
                 await interaction.response.send_message("You can't timeout yourself.", ephemeral=True)
                 return
-            update_boli_points(ctx.db, interaction.user.id, -cost)
+            award(ctx.db, interaction.user.id, -cost, reason="shop", detail=item)
             upsert_user(ctx.db, target.id, target.display_name)
             grant_perk(ctx.db, target.id, "curse_timeout", duration_hours=0.5)
             expiry = get_perk_expiry(ctx.db, target.id, "curse_timeout")
@@ -314,7 +314,7 @@ class ShopGroup(app_commands.Group):
 
         # --- Multiplier Potion ---
         elif item == "multiplier_potion":
-            update_boli_points(ctx.db, interaction.user.id, -cost)
+            award(ctx.db, interaction.user.id, -cost, reason="shop", detail=item)
             grant_perk(ctx.db, interaction.user.id, "multiplier_potion", duration_hours=0.25)
             expiry = get_perk_expiry(ctx.db, interaction.user.id, "multiplier_potion")
             expiry_utc = expiry.replace(tzinfo=timezone.utc) if expiry else None

@@ -10,11 +10,10 @@ import discord
 from navi.data.curse_data import contains_curse_word, get_random_curse_back, get_random_doomed_prediction
 from navi.data.messages import FALLBACK_MESSAGES
 from navi.db.repos.content import save_prediction
-from navi.db.repos.points import log_curse
 from navi.db.repos.settings import get_config_float, get_config_int
 from navi.llm.base import LLMRequest
 from navi.llm.prompts import get_curse_prompt, get_time_aware_system_prompt
-from navi.services.points import add_experience, update_boli_points
+from navi.services.points import award
 from navi.services.predictions import templatize
 
 logger = logging.getLogger("navi.handlers.passive_curse")
@@ -30,9 +29,7 @@ async def handle_passive_curse(ctx, message: discord.Message) -> bool:
         user_id = message.author.id
         curse_used = curse_used or "that"
 
-        log_curse(ctx.db, user_id, username, curse_used)
-        update_boli_points(ctx.db, user_id, 1)  # +1 Boli pt for curse event
-        add_experience(ctx.db, user_id, 1)
+        award(ctx.db, user_id, 1, 1, reason="curse_word_said", detail=curse_used, log_only=True)  # +1 Boli, +1 XP
 
         system_prompt = get_time_aware_system_prompt(ctx.db, username=username)
         user_prompt = get_curse_prompt(username, curse_used)

@@ -32,3 +32,5 @@ data/local_media/
 data/backups/
 .pytest_cache/
 .ruff_cache/
+data/v2/
+.DS_Store

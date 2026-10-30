@@ -36,9 +36,9 @@ async def test_guards_ignore_bots_killswitch_and_uninitialised_db(db):
     try:
         ctx = make_ctx(db)
         await pipeline.on_message(ctx, make_message(FakeUser(1, is_bot=True), "hi"))
-        ctx.settings.cache["master_killswitch"] = 1
+        ctx.settings.override("system.killswitch", True)
         await pipeline.on_message(ctx, make_message(FakeUser(1), "hi"))
-        ctx.settings.cache["master_killswitch"] = 0
+        ctx.settings.override("system.killswitch", False)
         ctx.db = None
         await pipeline.on_message(ctx, make_message(FakeUser(1), "hi"))
         assert calls == []

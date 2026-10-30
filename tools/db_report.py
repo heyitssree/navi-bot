@@ -22,15 +22,30 @@ def report(path: str) -> dict:
         except sqlite3.Error:
             return None
 
-    aggregates = {
-        "users": one("SELECT COUNT(*) FROM user_stats"),
-        "sum_boli_native": one("SELECT COALESCE(SUM(boli_points),0) FROM user_stats"),
-        "sum_boli_external": one("SELECT COALESCE(SUM(points),0) FROM external_boli_points"),
-        "sum_experience": one("SELECT COALESCE(SUM(experience),0) FROM user_stats"),
-        "sum_extra_actions": one("SELECT COALESCE(SUM(extra_actions),0) FROM user_stats"),
-        "media_rows": one("SELECT COUNT(*) FROM local_media"),
-        "knowledge_rows": one("SELECT COUNT(*) FROM local_knowledge"),
-    }
+    if "users" in counts:   # v2 layout
+        aggregates = {
+            "layout": "v2",
+            "users": one("SELECT COUNT(*) FROM users"),
+            "sum_boli_native": one("SELECT COALESCE(SUM(boli_points),0) FROM users"),
+            "sum_boli_partner": one("SELECT COALESCE(SUM(partner_points),0) FROM users"),
+            "sum_experience": one("SELECT COALESCE(SUM(experience),0) FROM users"),
+            "sum_extra_actions": one("SELECT COALESCE(SUM(extra_actions),0) FROM users"),
+            "media_rows": one("SELECT COUNT(*) FROM media"),
+            "knowledge_rows": one("SELECT COUNT(*) FROM knowledge"),
+            "ledger_rows": one("SELECT COUNT(*) FROM points_ledger"),
+            "ledger_sum_native": one("SELECT COALESCE(SUM(delta),0) FROM points_ledger WHERE pool='native'"),
+        }
+    else:                   # pre-v2 layout
+        aggregates = {
+            "layout": "pre-v2",
+            "users": one("SELECT COUNT(*) FROM user_stats"),
+            "sum_boli_native": one("SELECT COALESCE(SUM(boli_points),0) FROM user_stats"),
+            "sum_boli_external": one("SELECT COALESCE(SUM(points),0) FROM external_boli_points"),
+            "sum_experience": one("SELECT COALESCE(SUM(experience),0) FROM user_stats"),
+            "sum_extra_actions": one("SELECT COALESCE(SUM(extra_actions),0) FROM user_stats"),
+            "media_rows": one("SELECT COUNT(*) FROM local_media"),
+            "knowledge_rows": one("SELECT COUNT(*) FROM local_knowledge"),
+        }
     conn.close()
     return {"tables": counts, "aggregates": aggregates}
 

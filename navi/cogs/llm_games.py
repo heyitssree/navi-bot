@@ -22,7 +22,7 @@ from navi.db.repos.counters import _GEMINI_GAME_DAILY_LIMIT, get_gemini_game_dai
 from navi.db.repos.knowledge import get_random_knowledge_terms
 from navi.db.repos.users import get_user_profile
 from navi.llm.base import LLMRequest
-from navi.services.points import add_experience, update_boli_points
+from navi.services.points import award
 
 logger = logging.getLogger("navi.cogs.llm_games")
 
@@ -325,8 +325,7 @@ class NaviChallengeModal(discord.ui.Modal, title="🔮 Navi Challenge — Your C
         xp_award = score // 2
         testing = ctx.settings.is_testing_guild(interaction.guild_id)
         if not testing:
-            update_boli_points(ctx.db, interaction.user.id, boli_award)
-            add_experience(ctx.db, interaction.user.id, xp_award)
+            award(ctx.db, interaction.user.id, boli_award, xp_award, reason="game", detail="navi_challenge")
 
         color = discord.Color.green() if score >= 70 else (discord.Color.orange() if score >= 40 else discord.Color.red())
         embed = discord.Embed(
@@ -485,8 +484,7 @@ class TypeRaceModal(discord.ui.Modal, title="⌨️ Type Race — Malayalam or M
         xp_award = score // 2
         testing = ctx.settings.is_testing_guild(interaction.guild_id)
         if not testing:
-            update_boli_points(ctx.db, interaction.user.id, boli_award)
-            add_experience(ctx.db, interaction.user.id, xp_award)
+            award(ctx.db, interaction.user.id, boli_award, xp_award, reason="game", detail="type_race")
 
         color = discord.Color.green() if score >= (60 if is_malayalam else 35) else (
             discord.Color.orange() if score >= (30 if is_malayalam else 15) else discord.Color.red()

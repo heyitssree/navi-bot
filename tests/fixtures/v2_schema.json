@@ -1,0 +1,147 @@
+[
+ [
+  "index",
+  "ix_content_kind_status",
+  "CREATE INDEX ix_content_kind_status      ON content(kind, status)"
+ ],
+ [
+  "index",
+  "ix_events_kind_time",
+  "CREATE INDEX ix_events_kind_time ON events(kind, created_at)"
+ ],
+ [
+  "index",
+  "ix_events_user",
+  "CREATE INDEX ix_events_user      ON events(user_id)"
+ ],
+ [
+  "index",
+  "ix_holdings_user",
+  "CREATE INDEX ix_holdings_user ON holdings(user_id)"
+ ],
+ [
+  "index",
+  "ix_ledger_reason_time",
+  "CREATE INDEX ix_ledger_reason_time ON points_ledger(reason, created_at)"
+ ],
+ [
+  "index",
+  "ix_ledger_user_time",
+  "CREATE INDEX ix_ledger_user_time   ON points_ledger(user_id, created_at)"
+ ],
+ [
+  "index",
+  "ix_predhist_user",
+  "CREATE INDEX ix_predhist_user ON prediction_history(user_id, created_at)"
+ ],
+ [
+  "index",
+  "ix_prices_item_time",
+  "CREATE INDEX ix_prices_item_time ON market_prices(item_id, recorded_at)"
+ ],
+ [
+  "index",
+  "ix_results_board",
+  "CREATE INDEX ix_results_board ON game_results(game, guild_id, score DESC)"
+ ],
+ [
+  "index",
+  "ix_results_user",
+  "CREATE INDEX ix_results_user  ON game_results(user_id)"
+ ],
+ [
+  "index",
+  "ux_content_kind_key",
+  "CREATE UNIQUE INDEX ux_content_kind_key  ON content(kind, key) WHERE key IS NOT NULL AND kind != 'score_comment'"
+ ],
+ [
+  "index",
+  "ux_content_kind_text",
+  "CREATE UNIQUE INDEX ux_content_kind_text ON content(kind, text)"
+ ],
+ [
+  "index",
+  "ux_ledger_ref",
+  "CREATE UNIQUE INDEX ux_ledger_ref  ON points_ledger(reason, ref) WHERE ref IS NOT NULL"
+ ],
+ [
+  "table",
+  "app_emojis",
+  "CREATE TABLE app_emojis (\n  emoji_id TEXT PRIMARY KEY, name TEXT NOT NULL, original_id TEXT,\n  animated INTEGER NOT NULL DEFAULT 0, last_used TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)"
+ ],
+ [
+  "table",
+  "content",
+  "CREATE TABLE content (\n  id INTEGER PRIMARY KEY,\n  kind TEXT NOT NULL,               -- prediction | curse_back | score_comment | movie_dialogue | qa_answer\n  key  TEXT,                        -- score comments: '<game>:<bucket>'; qa_answer: normalised question\n  text TEXT NOT NULL,               -- templates keep {user} / {curse} placeholders\n  status TEXT NOT NULL DEFAULT 'active',   -- active | pending | rejected\n  source TEXT NOT NULL,             -- seed | llm | admin | migrated\n  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,\n  reviewed_by INTEGER, reviewed_at TEXT)"
+ ],
+ [
+  "table",
+  "daily_counters",
+  "CREATE TABLE daily_counters (\n  user_id INTEGER NOT NULL,\n  day     TEXT    NOT NULL,          -- IST date YYYY-MM-DD\n  counter TEXT    NOT NULL,          -- cosmic_action | refill | game:<name> | llm_game:<name> | qa ...\n  value   INTEGER NOT NULL DEFAULT 0,\n  PRIMARY KEY (user_id, day, counter)\n) WITHOUT ROWID"
+ ],
+ [
+  "table",
+  "events",
+  "CREATE TABLE events (\n  id INTEGER PRIMARY KEY, kind TEXT NOT NULL,   -- command | session | llm_call | safety_reject | setting_change\n  user_id INTEGER, guild_id INTEGER, channel_id INTEGER,\n  name TEXT, detail TEXT, latency_ms INTEGER,\n  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)"
+ ],
+ [
+  "table",
+  "game_results",
+  "CREATE TABLE game_results (\n  id INTEGER PRIMARY KEY, game TEXT NOT NULL, user_id INTEGER NOT NULL,\n  guild_id INTEGER, game_id TEXT, score INTEGER NOT NULL,\n  details TEXT,                     -- JSON: total_questions, avg_response_ms, difficulty, category, boli_awarded\n  played_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,\n  UNIQUE (game, game_id))"
+ ],
+ [
+  "table",
+  "holdings",
+  "CREATE TABLE holdings (\n  id INTEGER PRIMARY KEY, user_id INTEGER NOT NULL,\n  item_id TEXT NOT NULL REFERENCES market_items(item_id),\n  quantity INTEGER NOT NULL DEFAULT 1, purchase_price INTEGER NOT NULL,\n  purchased_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, expires_at TEXT NOT NULL)"
+ ],
+ [
+  "table",
+  "knowledge",
+  "CREATE TABLE knowledge (\n  id INTEGER PRIMARY KEY, category TEXT NOT NULL, term TEXT NOT NULL,\n  description TEXT NOT NULL, tags TEXT NOT NULL DEFAULT '',\n  status TEXT NOT NULL DEFAULT 'active',  -- active | pending | rejected\n  submitted_by INTEGER, approved_by INTEGER,\n  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,\n  UNIQUE (category, term))"
+ ],
+ [
+  "table",
+  "market_items",
+  "CREATE TABLE market_items (\n  item_id TEXT PRIMARY KEY, name TEXT NOT NULL, emoji TEXT NOT NULL,\n  base_price INTEGER NOT NULL, current_price INTEGER NOT NULL,\n  volatility TEXT NOT NULL DEFAULT 'medium', description TEXT,\n  last_updated TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)"
+ ],
+ [
+  "table",
+  "market_prices",
+  "CREATE TABLE market_prices (\n  id INTEGER PRIMARY KEY, item_id TEXT NOT NULL REFERENCES market_items(item_id),\n  price INTEGER NOT NULL, recorded_at TEXT NOT NULL)"
+ ],
+ [
+  "table",
+  "media",
+  "CREATE TABLE media (\n  shortcut TEXT PRIMARY KEY, owner_id INTEGER NOT NULL,\n  storage_type TEXT NOT NULL,       -- local | s3 | native_emoji | app_emoji | app_emoji_sticker | native_sticker\n  media_type TEXT NOT NULL DEFAULT 'emoji',     -- emoji | sticker\n  location TEXT, discord_id TEXT, discord_name TEXT,\n  animated INTEGER NOT NULL DEFAULT 0, source_url TEXT,\n  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)"
+ ],
+ [
+  "table",
+  "perks",
+  "CREATE TABLE perks (\n  user_id INTEGER NOT NULL, perk TEXT NOT NULL, expires_at TEXT NOT NULL,\n  PRIMARY KEY (user_id, perk)) WITHOUT ROWID"
+ ],
+ [
+  "table",
+  "permissions",
+  "CREATE TABLE permissions (\n  user_id INTEGER NOT NULL, permission TEXT NOT NULL,\n  granted_by INTEGER NOT NULL, granted_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,\n  PRIMARY KEY (user_id, permission)) WITHOUT ROWID"
+ ],
+ [
+  "table",
+  "points_ledger",
+  "CREATE TABLE points_ledger (\n  id              INTEGER PRIMARY KEY,\n  user_id         INTEGER NOT NULL,\n  pool            TEXT    NOT NULL DEFAULT 'native',   -- native | partner\n  delta           INTEGER NOT NULL,                    -- 0 allowed (history-only rows)\n  xp_delta        INTEGER NOT NULL DEFAULT 0,\n  reason          TEXT    NOT NULL,\n  counterparty_id INTEGER,\n  detail          TEXT,\n  ref             TEXT,               -- idempotency key (partner game_id)\n  created_at      TEXT    NOT NULL DEFAULT CURRENT_TIMESTAMP\n)"
+ ],
+ [
+  "table",
+  "prediction_history",
+  "CREATE TABLE prediction_history (\n  id INTEGER PRIMARY KEY, user_id INTEGER NOT NULL, text TEXT NOT NULL,\n  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)"
+ ],
+ [
+  "table",
+  "settings",
+  "CREATE TABLE settings (\n  key TEXT PRIMARY KEY, value TEXT NOT NULL,   -- JSON-encoded\n  updated_by INTEGER, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)"
+ ],
+ [
+  "table",
+  "users",
+  "CREATE TABLE users (\n  user_id          INTEGER PRIMARY KEY,\n  display_name     TEXT    NOT NULL,\n  rashi            TEXT,\n  boli_points      INTEGER NOT NULL DEFAULT 0,   -- native balance\n  partner_points   INTEGER NOT NULL DEFAULT 0,   -- partner pool balance\n  experience       INTEGER NOT NULL DEFAULT 0,\n  strikes          INTEGER NOT NULL DEFAULT 0,\n  prediction_count INTEGER NOT NULL DEFAULT 0,\n  extra_actions    INTEGER NOT NULL DEFAULT 0,\n  first_seen       TEXT    NOT NULL DEFAULT CURRENT_TIMESTAMP,\n  last_seen        TEXT    NOT NULL DEFAULT CURRENT_TIMESTAMP\n)"
+ ]
+]

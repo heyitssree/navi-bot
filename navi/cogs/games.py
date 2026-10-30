@@ -12,7 +12,7 @@ from discord.ext import commands
 from navi.context import AppContext
 from navi.db.repos.counters import _GAME_DAILY_LIMIT, get_total_game_daily_count, increment_game_daily_count
 from navi.db.repos.users import get_user_profile
-from navi.services.points import update_boli_points
+from navi.services.points import award
 from navi.services.quota import OVER_QUOTA_GAME_MESSAGES
 
 logger = logging.getLogger("navi.cogs.games")
@@ -123,13 +123,13 @@ class GamesCog(commands.Cog):
             return
 
         await loop.run_in_executor(None, lambda: increment_game_daily_count(ctx.db, interaction.user.id, "flip"))
-        update_boli_points(ctx.db, interaction.user.id, -bet)
+        award(ctx.db, interaction.user.id, -bet, reason="game", detail="flip:bet")
         await asyncio.sleep(1.5)
 
         result = random.choice(["heads", "tails"])
         coin_emoji = "🪙"
         if result == choice:
-            update_boli_points(ctx.db, interaction.user.id, bet * 2)
+            award(ctx.db, interaction.user.id, bet * 2, reason="game", detail="flip:win")
             outcome = f"✅ **{result.capitalize()}!** You win **{bet} Boli**! {coin_emoji}"
         else:
             outcome = f"❌ **{result.capitalize()}.** You lose **{bet} Boli**. {coin_emoji}"
@@ -189,7 +189,7 @@ class GamesCog(commands.Cog):
             return
 
         await loop.run_in_executor(None, lambda: increment_game_daily_count(ctx.db, interaction.user.id, "roll_dice"))
-        update_boli_points(ctx.db, interaction.user.id, -bet)
+        award(ctx.db, interaction.user.id, -bet, reason="game", detail="roll_dice:bet")
         await asyncio.sleep(1.5)
 
         d1, d2 = random.randint(1, 6), random.randint(1, 6)
@@ -215,7 +215,7 @@ class GamesCog(commands.Cog):
 
         winnings = bet * payout_mult if won else 0
         if won:
-            update_boli_points(ctx.db, interaction.user.id, winnings)
+            award(ctx.db, interaction.user.id, winnings, reason="game", detail="roll_dice:win")
 
         dice_display = f"🎲 **{d1}** + **{d2}** = **{total}**"
         outcome_str = f"✅ **Win!** +**{winnings - bet} Boli**" if won else f"❌ **Loss.** -{bet} Boli"
@@ -280,7 +280,7 @@ class GamesCog(commands.Cog):
             return
 
         await loop.run_in_executor(None, lambda: increment_game_daily_count(ctx.db, interaction.user.id, "roulette"))
-        update_boli_points(ctx.db, interaction.user.id, -bet)
+        award(ctx.db, interaction.user.id, -bet, reason="game", detail="roulette:bet")
 
         await interaction.followup.send(
             f"🌀 The cosmic wheel is spinning for {interaction.user.mention}…", silent=True
@@ -316,7 +316,7 @@ class GamesCog(commands.Cog):
 
         winnings = bet * payout_mult if won else 0
         if won:
-            update_boli_points(ctx.db, interaction.user.id, winnings)
+            award(ctx.db, interaction.user.id, winnings, reason="game", detail="roulette:win")
 
         outcome_str = f"✅ **Win!** +**{winnings - bet} Boli**" if won else f"❌ **Loss.** -{bet} Boli"
         landed_display = f"{landed} (green)" if landed in _green_pockets else f"{landed} ({landed_color})"
@@ -362,7 +362,7 @@ class GamesCog(commands.Cog):
             return
 
         await loop.run_in_executor(None, lambda: increment_game_daily_count(ctx.db, interaction.user.id, "slots"))
-        update_boli_points(ctx.db, interaction.user.id, -bet)
+        award(ctx.db, interaction.user.id, -bet, reason="game", detail="slots:bet")
         await asyncio.sleep(1.5)
 
         reels = random.choices(_SLOTS_SYMBOLS, weights=_SLOTS_WEIGHTS, k=3)
@@ -388,7 +388,7 @@ class GamesCog(commands.Cog):
 
         winnings = bet * payout_mult
         if winnings:
-            update_boli_points(ctx.db, interaction.user.id, winnings)
+            award(ctx.db, interaction.user.id, winnings, reason="game", detail="slots:win")
 
         embed = discord.Embed(
             title="🎰 Cosmic Slots",

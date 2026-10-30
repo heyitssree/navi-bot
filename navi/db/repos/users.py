@@ -1,10 +1,9 @@
-# navi/db/repos/users.py - moved from schema.py (no behaviour change)
+# navi/db/repos/users.py - users table (v2). Balances are written only by navi.services.points.
 from __future__ import annotations
 
 import logging
 import random
 import sqlite3
-from datetime import datetime
 
 from navi.db.connection import _db_write
 
@@ -17,39 +16,30 @@ def get_user_profile(
 ) -> dict | None:
     """Return user profile dict or None if user doesn't exist.
 
-    boli_points = native (internal) points only.
-    external_boli = sum of all external partner awards (can be negative).
-    total_boli_points = boli_points + external_boli — use this for display.
+    boli_points = native pool; external_boli = partner pool (can be negative);
+    total_boli_points = both - use this for display.
     """
     row = conn.execute(
         """
-        SELECT u.user_id, u.username, u.rashi, u.boli_points, u.experience,
-               u.last_seen, u.prediction_count, u.daily_action_count,
-               u.last_action_date, u.extra_actions,
-               COALESCE((
-                   SELECT SUM(e.points) FROM external_boli_points e WHERE e.user_id = u.user_id
-               ), 0)
-        FROM user_stats u WHERE u.user_id = ?
+        SELECT user_id, display_name, rashi, boli_points, partner_points, experience,
+               last_seen, prediction_count, extra_actions
+        FROM users WHERE user_id = ?
         """,
         [user_id],
     ).fetchone()
     if not row:
         return None
-    native = row[3]
-    external = row[10]
     return {
         "user_id": row[0],
         "username": row[1],
         "rashi": row[2],
-        "boli_points": native,
-        "external_boli": external,
-        "total_boli_points": native + external,
-        "experience": row[4],
-        "last_seen": row[5],
-        "prediction_count": row[6],
-        "daily_action_count": row[7],
-        "last_action_date": row[8],
-        "extra_actions": row[9],
+        "boli_points": row[3],
+        "external_boli": row[4],
+        "total_boli_points": row[3] + row[4],
+        "experience": row[5],
+        "last_seen": row[6],
+        "prediction_count": row[7],
+        "extra_actions": row[8],
     }
 
 
@@ -60,27 +50,17 @@ def upsert_user(
     rashi: str | None = None,
 ) -> None:
     """Insert or update a user record."""
-    existing = get_user_profile(conn, user_id)
-
     def _write() -> None:
-        if existing is None:
-            conn.execute(
-                """
-                INSERT INTO user_stats (user_id, username, rashi, boli_points, last_seen, prediction_count)
-                VALUES (?, ?, ?, 0, CURRENT_TIMESTAMP, 0)
-                """,
-                [user_id, username, rashi],
-            )
-        elif rashi:
-            conn.execute(
-                "UPDATE user_stats SET username=?, rashi=?, last_seen=CURRENT_TIMESTAMP WHERE user_id=?",
-                [username, rashi, user_id],
-            )
-        else:
-            conn.execute(
-                "UPDATE user_stats SET username=?, last_seen=CURRENT_TIMESTAMP WHERE user_id=?",
-                [username, user_id],
-            )
+        conn.execute(
+            """
+            INSERT INTO users (user_id, display_name, rashi) VALUES (?, ?, ?)
+            ON CONFLICT (user_id) DO UPDATE SET
+                display_name = excluded.display_name,
+                rashi = COALESCE(excluded.rashi, users.rashi),
+                last_seen = CURRENT_TIMESTAMP
+            """,
+            [user_id, username, rashi],
+        )
         conn.commit()
     _db_write(_write)
 
@@ -91,7 +71,7 @@ def bulk_update_last_seen(conn: sqlite3.Connection, seen: dict[int, str]) -> int
         return 0
     rows = [(ts, uid) for uid, ts in seen.items()]
     _db_write(lambda: (
-        conn.executemany("UPDATE user_stats SET last_seen = ? WHERE user_id = ?", rows),
+        conn.executemany("UPDATE users SET last_seen = ? WHERE user_id = ?", rows),
         conn.commit(),
     ))
     return len(rows)
@@ -99,11 +79,8 @@ def bulk_update_last_seen(conn: sqlite3.Connection, seen: dict[int, str]) -> int
 
 def get_last_seen(conn: sqlite3.Connection, user_id: int) -> str | None:
     """Return the stored last_seen text for a user, or None when the user has no record."""
-    row = conn.execute("SELECT last_seen FROM user_stats WHERE user_id = ?", [user_id]).fetchone()
-    if not row or not row[0]:
-        return None
-    val = row[0]  # PARSE_DECLTYPES turns TIMESTAMP columns into datetime objects
-    return val.strftime("%Y-%m-%d %H:%M:%S") if isinstance(val, datetime) else str(val)
+    row = conn.execute("SELECT last_seen FROM users WHERE user_id = ?", [user_id]).fetchone()
+    return str(row[0]) if row and row[0] else None
 
 
 def get_leaderboard(
@@ -111,10 +88,10 @@ def get_leaderboard(
     limit: int = 10,
     offset: int = 0,
 ) -> list[dict]:
-    """Return users sorted by total Boli Points (native + external), with pagination."""
+    """Return users sorted by total Boli Points (native + partner), with pagination."""
     rows = conn.execute(
-        "SELECT username, rashi, total_boli_points, prediction_count, experience "
-        "FROM boli_totals_view ORDER BY total_boli_points DESC LIMIT ? OFFSET ?",
+        "SELECT display_name, rashi, boli_points + partner_points AS total, prediction_count, experience "
+        "FROM users ORDER BY total DESC, user_id ASC LIMIT ? OFFSET ?",
         [limit, offset],
     ).fetchall()
     return [
@@ -130,25 +107,21 @@ def get_leaderboard(
 
 
 def count_leaderboard_entries(conn: sqlite3.Connection) -> int:
-    """Return total number of users with a stats record."""
-    row = conn.execute("SELECT COUNT(*) FROM user_stats").fetchone()
+    """Return total number of users."""
+    row = conn.execute("SELECT COUNT(*) FROM users").fetchone()
     return row[0] if row else 0
 
 
 def get_user_strikes(conn: sqlite3.Connection, user_id: int) -> int:
     """Return the current strike count for a user (0 if not found)."""
-    row = conn.execute(
-        "SELECT strikes FROM user_stats WHERE user_id = ?", [user_id]
-    ).fetchone()
+    row = conn.execute("SELECT strikes FROM users WHERE user_id = ?", [user_id]).fetchone()
     return int(row[0]) if row and row[0] is not None else 0
 
 
 def increment_user_strikes(conn: sqlite3.Connection, user_id: int) -> int:
     """Increment strikes by 1 and return the new count."""
     _db_write(lambda: (
-        conn.execute(
-            "UPDATE user_stats SET strikes = strikes + 1 WHERE user_id = ?", [user_id]
-        ),
+        conn.execute("UPDATE users SET strikes = strikes + 1 WHERE user_id = ?", [user_id]),
         conn.commit(),
     ))
     return get_user_strikes(conn, user_id)
@@ -157,16 +130,16 @@ def increment_user_strikes(conn: sqlite3.Connection, user_id: int) -> int:
 def reset_user_strikes(conn: sqlite3.Connection, user_id: int) -> None:
     """Reset a user's strikes to 0."""
     _db_write(lambda: (
-        conn.execute("UPDATE user_stats SET strikes = 0 WHERE user_id = ?", [user_id]),
+        conn.execute("UPDATE users SET strikes = 0 WHERE user_id = ?", [user_id]),
         conn.commit(),
     ))
 
 
 def reset_all_strikes(conn: sqlite3.Connection) -> int:
     """Reset strikes to 0 for every user. Returns the number of rows affected."""
-    count = conn.execute("SELECT COUNT(*) FROM user_stats WHERE strikes > 0").fetchone()[0]
+    count = conn.execute("SELECT COUNT(*) FROM users WHERE strikes > 0").fetchone()[0]
     _db_write(lambda: (
-        conn.execute("UPDATE user_stats SET strikes = 0"),
+        conn.execute("UPDATE users SET strikes = 0"),
         conn.commit(),
     ))
     return count
@@ -182,11 +155,11 @@ def get_random_recent_user(
     """
     rows = conn.execute(
         """
-        SELECT DISTINCT u.user_id, u.username
-        FROM user_stats u
-        INNER JOIN user_prediction_history h ON h.user_id = u.user_id
+        SELECT DISTINCT u.user_id, u.display_name
+        FROM users u
+        INNER JOIN prediction_history h ON h.user_id = u.user_id
         WHERE u.user_id != ?
-          AND h.timestamp >= datetime('now', '-1 day')
+          AND h.created_at >= datetime('now', '-1 day')
         """,
         [exclude_id],
     ).fetchall()
@@ -197,16 +170,14 @@ def get_random_recent_user(
 
 
 def get_active_user_ids_previous_day(conn: sqlite3.Connection) -> list[int]:
-    """Return user_ids active during the previous IST day window (7am–6:59am).
+    """Return user_ids active during the previous IST day window (7am-6:59am).
 
-    'Active' means last_seen fell within that window.
-    Used for the daily lucky draw at 7am IST.
+    'Active' means last_seen fell within that window. Used for the daily lucky draw at 7am IST.
     """
-    # Previous day window in UTC:
-    # 7:00am IST = 1:30am UTC, so window = yesterday 01:30:00 UTC → today 01:29:59 UTC
+    # 7:00am IST = 1:30am UTC, so window = yesterday 01:30:00 UTC -> today 01:29:59 UTC
     rows = conn.execute(
         """
-        SELECT user_id FROM user_stats
+        SELECT user_id FROM users
         WHERE last_seen >= datetime('now', '-1 day', 'start of day', '+1 hours', '+30 minutes')
           AND last_seen <  datetime('now', 'start of day', '+1 hours', '+30 minutes')
         """,
@@ -219,18 +190,15 @@ def get_top_n_from_user_ids(
     user_ids: list[int],
     n: int = 10,
 ) -> list[dict]:
-    """Return up to n users sorted by boli_points DESC, filtered to the given user_id list.
-
-    Returns list of dicts with user_id, username, boli_points.
-    """
+    """Return up to n users sorted by boli_points DESC, filtered to the given user_id list."""
     if not user_ids:
         return []
     placeholders = ",".join("?" * len(user_ids))
     rows = conn.execute(
         f"""
-        SELECT user_id, username, boli_points FROM user_stats
+        SELECT user_id, display_name, boli_points FROM users
         WHERE user_id IN ({placeholders})
-        ORDER BY boli_points DESC
+        ORDER BY boli_points DESC, user_id ASC
         LIMIT ?
         """,
         [*user_ids, n],
@@ -243,9 +211,6 @@ def increment_prediction_count(
     user_id: int,
 ) -> None:
     _db_write(lambda: (
-        conn.execute(
-            "UPDATE user_stats SET prediction_count = prediction_count + 1 WHERE user_id = ?",
-            [user_id],
-        ),
+        conn.execute("UPDATE users SET prediction_count = prediction_count + 1 WHERE user_id = ?", [user_id]),
         conn.commit(),
     ))

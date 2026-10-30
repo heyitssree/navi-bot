@@ -24,7 +24,7 @@ from navi.db.repos.market import (
 from navi.db.repos.users import get_user_profile
 from navi.services.market_engine import get_trend_arrow
 from navi.services.market_loop import MARKET_EXPIRY_DAYS
-from navi.services.points import add_experience, update_boli_points
+from navi.services.points import award
 
 try:
     import matplotlib
@@ -151,7 +151,7 @@ class MarketGroup(app_commands.Group):
             return
 
         expires = datetime.now(timezone.utc) + timedelta(days=MARKET_EXPIRY_DAYS)
-        update_boli_points(ctx.db, interaction.user.id, -total_cost)
+        award(ctx.db, interaction.user.id, -total_cost, reason="market", detail=f"buy:{item['item_id']}:{quantity}")
         buy_holding(ctx.db, interaction.user.id, item["item_id"], quantity, item["current_price"], expires)
 
         msg = random.choice(_MARKET_BUY_TEMPLATES).format(
@@ -209,8 +209,8 @@ class MarketGroup(app_commands.Group):
             remaining -= sell_qty
 
         proceeds = item["current_price"] * quantity
-        update_boli_points(ctx.db, interaction.user.id, proceeds)
-        add_experience(ctx.db, interaction.user.id, max(0, proceeds - total_cost_basis) // 10)  # XP from profit
+        award(ctx.db, interaction.user.id, proceeds, max(0, proceeds - total_cost_basis) // 10,  # XP from profit
+              reason="market", detail=f"sell:{item['item_id']}:{quantity}")
 
         pnl = proceeds - total_cost_basis
         pnl_str = f"📈 Profit: +{pnl} Boli" if pnl > 0 else (f"📉 Loss: {pnl} Boli" if pnl < 0 else "Break-even.")

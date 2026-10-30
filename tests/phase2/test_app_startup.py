@@ -27,13 +27,13 @@ async def test_on_ready_initialises_everything_and_shutdown_is_clean(tmp_path, m
     assert ctx.db is not None and ctx.llm is not None
     assert ctx.llm.provider.key_names == ["free"] and ctx.llm.free_tier_mode is True
     assert ctx.settings.feat("feature_curses") is True
-    assert set(ctx.tasks) == {"backup", "last_seen_flush", "lucky_draw", "market_hourly", "partner_api"}
+    assert set(ctx.tasks) == {"backup", "last_seen_flush", "lucky_draw", "market_hourly", "partner_api", "retention"}
     bot.tree.sync.assert_awaited_once()
 
     # a message flows through the pipeline against the real temp database
     msg = make_message(FakeUser(11, "tester"), "hello there")
     await bot.on_message(msg)
-    assert ctx.db.execute("SELECT username FROM user_stats WHERE user_id=11").fetchone()[0] == "tester"
+    assert ctx.db.execute("SELECT display_name FROM users WHERE user_id=11").fetchone()[0] == "tester"
     assert 11 in ctx.state.last_seen_pending
 
     await app.shutdown(ctx)

@@ -10,7 +10,7 @@ import discord
 
 from navi.db.repos.settings import get_config_str, set_config_str
 from navi.db.repos.users import get_active_user_ids_previous_day, get_top_n_from_user_ids
-from navi.services.points import add_experience, update_boli_points
+from navi.services.points import award
 
 logger = logging.getLogger("navi.services.lucky_draw")
 
@@ -82,8 +82,7 @@ async def run_lucky_draw(ctx, announce_channel: discord.abc.Messageable | None =
         return "No top-10 candidates found — draw skipped."
 
     winner = random.choice(candidates)
-    update_boli_points(ctx.db, winner["user_id"], _LUCKY_DRAW_AMOUNT)
-    add_experience(ctx.db, winner["user_id"], _LUCKY_DRAW_AMOUNT)
+    award(ctx.db, winner["user_id"], _LUCKY_DRAW_AMOUNT, _LUCKY_DRAW_AMOUNT, reason="lucky_draw")
     set_config_str(ctx.db, "lucky_draw_last_date", today_str)
 
     winner_mention = f"<@{winner['user_id']}>"

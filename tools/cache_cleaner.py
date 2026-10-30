@@ -1,3 +1,5 @@
+# NOTE (Phase 3): this one-time tool targets the pre-v2 database layout (user_stats etc.). For a v2 database
+# use tools/migrate_v2.py first; this script will not work on a v2 file.
 # tools/cache_cleaner.py - Periodic cache generalizer for Navi
 #
 # Run manually: python tools/cache_cleaner.py

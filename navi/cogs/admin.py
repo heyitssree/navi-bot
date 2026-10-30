@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 from datetime import datetime, timedelta, timezone
 
@@ -15,7 +16,7 @@ from navi.db.repos.counters import reset_gambling_count, reset_gemini_game_count
 from navi.db.repos.events import get_health_stats, get_table_counts
 from navi.db.repos.settings import get_all_configs, set_config_float, set_config_int, set_config_str, set_testing_guild
 from navi.db.repos.users import get_user_profile, reset_all_strikes
-from navi.services.points import set_user_points, update_boli_points
+from navi.services.points import award, set_user_points
 
 logger = logging.getLogger("navi.cogs.admin")
 
@@ -182,7 +183,8 @@ class AdminGroup(app_commands.Group):
     @app_commands.describe(user="The member to update", points="Boli Points to set", readings="Prediction count to set", rashi="Rashi to assign (optional)")
     async def set_points_cmd(self, interaction: discord.Interaction, user: discord.Member, points: int, readings: int = 0, rashi: str | None = None) -> None:
         ctx = interaction.client.ctx
-        set_user_points(ctx.db, user.id, user.display_name, points, prediction_count=readings, rashi=rashi)
+        set_user_points(ctx.db, user.id, user.display_name, points, prediction_count=readings, rashi=rashi,
+                        updated_by=interaction.user.id)
         rashi_str = f" · Rashi: {rashi}" if rashi else ""
         await interaction.response.send_message(
             f"✅ **{user.display_name}** → 🍮 **{points} Boli Points** · {readings} readings{rashi_str}",
@@ -211,7 +213,7 @@ class AdminGroup(app_commands.Group):
         delta = amount if operation == "add" else -amount
         profile = get_user_profile(ctx.db, user.id)
         old_pts = profile["boli_points"] if profile else 0
-        update_boli_points(ctx.db, user.id, delta)
+        award(ctx.db, user.id, delta, reason="admin", detail=json.dumps({"by": interaction.user.id}), log_only=True)
         new_pts = old_pts + delta
         sign = f"+{amount}" if operation == "add" else f"-{amount}"
         await interaction.response.send_message(

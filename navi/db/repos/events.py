@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import csv
+import json
 import logging
 import sqlite3
 
@@ -21,15 +22,14 @@ def log_command_event(
     latency_ms: int | None = None,
     used_cache: int = 0,
 ) -> None:
-    """Record a single command invocation for usage analytics."""
+    """Record a single command invocation for usage analytics (events.kind = 'command')."""
+    info = {k: v for k, v in (("sub", subcommand), ("cache", used_cache or None)) if v}
+    detail = json.dumps(info) if info else None
     def _write() -> None:
         conn.execute(
-            """
-            INSERT INTO command_events
-                (id, user_id, username, command, subcommand, channel_id, guild_id, latency_ms, used_cache)
-            VALUES (NULL, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            [user_id, username, command, subcommand, channel_id, guild_id, latency_ms, used_cache],
+            "INSERT INTO events (kind, user_id, guild_id, channel_id, name, detail, latency_ms)"
+            " VALUES ('command', ?, ?, ?, ?, ?, ?)",
+            [user_id, guild_id, channel_id, command, detail, latency_ms],
         )
         conn.commit()
     _db_write(_write)
@@ -42,30 +42,28 @@ def log_session_event(
 ) -> None:
     """Record a bot lifecycle event (start, stop, ready, error)."""
     def _write() -> None:
-        conn.execute(
-            "INSERT INTO session_events (id, event_type, detail) VALUES (NULL, ?, ?)",
-            [event_type, detail],
-        )
+        conn.execute("INSERT INTO events (kind, name, detail) VALUES ('session', ?, ?)", [event_type, detail])
         conn.commit()
     _db_write(_write)
 
 
-def log_api_call(
+def log_llm_call(
     conn: sqlite3.Connection,
-    key_used: str,
-    cache_hit: bool = False,
-    command: str | None = None,
+    provider: str,
+    model: str,
+    purpose: str,
+    outcome: str,
+    input_tokens: int = 0,
+    output_tokens: int = 0,
     latency_ms: int | None = None,
-    error: str | None = None,
 ) -> None:
-    """Record a Gemini API call for cost and cache visibility."""
+    """Record one LLM router decision (events.kind = 'llm_call')."""
+    detail = json.dumps({"provider": provider, "model": model, "in": input_tokens, "out": output_tokens,
+                         "outcome": outcome})
     def _write() -> None:
         conn.execute(
-            """
-            INSERT INTO api_call_log (id, key_used, cache_hit, command, latency_ms, error)
-            VALUES (NULL, ?, ?, ?, ?, ?)
-            """,
-            [key_used, int(cache_hit), command, latency_ms, error],
+            "INSERT INTO events (kind, name, detail, latency_ms) VALUES ('llm_call', ?, ?, ?)",
+            [purpose, detail, latency_ms],
         )
         conn.commit()
     _db_write(_write)
@@ -75,9 +73,9 @@ def export_stats_csv(
     conn: sqlite3.Connection,
     path: str = "data/user_stats_backup.csv",
 ) -> None:
-    """Export user_stats to CSV. Useful before wiping the DB."""
+    """Export users to CSV. Useful before wiping the DB."""
     rows = conn.execute(
-        "SELECT user_id, username, rashi, boli_points, prediction_count FROM user_stats"
+        "SELECT user_id, display_name, rashi, boli_points, prediction_count FROM users"
     ).fetchall()
     with open(path, "w", newline="", encoding="utf-8") as f:
         writer = csv.writer(f)
@@ -87,8 +85,8 @@ def export_stats_csv(
 
 
 def get_table_counts(conn: sqlite3.Connection) -> dict[str, int]:
-    """Return row counts for all tables. Used by /health command."""
-    tables = ["predictions_cache", "user_stats", "user_prediction_history", "curse_logs", "daily_omens"]
+    """Return row counts for the main tables. Used by /health."""
+    tables = ["content", "users", "prediction_history", "points_ledger", "events"]
     counts = {}
     for table in tables:
         row = conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()
@@ -98,60 +96,35 @@ def get_table_counts(conn: sqlite3.Connection) -> dict[str, int]:
 
 def get_health_stats(conn: sqlite3.Connection) -> dict:
     """Return a rich set of runtime statistics for the /health command."""
-    stats: dict = {}
+    def one(sql: str, params: list | None = None):
+        return (conn.execute(sql, params or []).fetchone() or (0,))[0]
 
+    cursed = "('curse_received', 'curse_word_said')"
+    stats: dict = {}
     # --- User activity ---
-    stats["total_users"] = (
-        conn.execute("SELECT COUNT(*) FROM user_stats").fetchone() or (0,)
-    )[0]
-    stats["active_today"] = (
-        conn.execute(
-            "SELECT COUNT(*) FROM user_stats WHERE DATE(last_seen) = DATE('now')"
-        ).fetchone() or (0,)
-    )[0]
-    stats["active_week"] = (
-        conn.execute(
-            "SELECT COUNT(*) FROM user_stats WHERE last_seen >= datetime('now', '-7 days')"
-        ).fetchone() or (0,)
-    )[0]
-    stats["total_boli_points"] = (
-        conn.execute("SELECT COALESCE(SUM(boli_points), 0) FROM user_stats").fetchone() or (0,)
-    )[0]
+    stats["total_users"] = one("SELECT COUNT(*) FROM users")
+    stats["active_today"] = one("SELECT COUNT(*) FROM users WHERE DATE(last_seen) = DATE('now')")
+    stats["active_week"] = one("SELECT COUNT(*) FROM users WHERE last_seen >= datetime('now', '-7 days')")
+    stats["total_boli_points"] = one("SELECT COALESCE(SUM(boli_points), 0) FROM users")
     top_row = conn.execute(
-        "SELECT username, boli_points FROM user_stats ORDER BY boli_points DESC LIMIT 1"
+        "SELECT display_name, boli_points FROM users ORDER BY boli_points DESC, user_id ASC LIMIT 1"
     ).fetchone()
     stats["top_user"] = f"{top_row[0]} ({top_row[1]} pts)" if top_row else "N/A"
-
     # --- Prediction activity ---
-    stats["predictions_today"] = (
-        conn.execute(
-            "SELECT COUNT(*) FROM user_prediction_history WHERE DATE(timestamp) = DATE('now')"
-        ).fetchone() or (0,)
-    )[0]
+    stats["predictions_today"] = one("SELECT COUNT(*) FROM prediction_history WHERE DATE(created_at) = DATE('now')")
     cache_rows = conn.execute(
-        "SELECT cache_type, COUNT(*) FROM predictions_cache GROUP BY cache_type ORDER BY cache_type"
+        "SELECT kind, COUNT(*) FROM content WHERE status = 'active' GROUP BY kind ORDER BY kind"
     ).fetchall()
     stats["cache_by_type"] = {r[0]: r[1] for r in cache_rows}
-
     # --- Curse log ---
-    stats["curses_today"] = (
-        conn.execute(
-            "SELECT COUNT(*) FROM curse_logs WHERE DATE(timestamp) = DATE('now')"
-        ).fetchone() or (0,)
-    )[0]
-    stats["curses_total"] = (
-        conn.execute("SELECT COUNT(*) FROM curse_logs").fetchone() or (0,)
-    )[0]
+    stats["curses_today"] = one(
+        f"SELECT COUNT(*) FROM points_ledger WHERE reason IN {cursed} AND DATE(created_at) = DATE('now')")
+    stats["curses_total"] = one(f"SELECT COUNT(*) FROM points_ledger WHERE reason IN {cursed}")
     top_curse = conn.execute(
-        "SELECT curse_used, COUNT(*) AS n FROM curse_logs GROUP BY curse_used ORDER BY n DESC LIMIT 1"
+        f"SELECT detail, COUNT(*) AS n FROM points_ledger WHERE reason IN {cursed} AND detail IS NOT NULL "
+        "GROUP BY detail ORDER BY n DESC, detail ASC LIMIT 1"
     ).fetchone()
     stats["top_curse"] = f'"{top_curse[0]}" × {top_curse[1]}' if top_curse else "N/A"
-
     # --- Active perks ---
-    stats["active_perks"] = (
-        conn.execute(
-            "SELECT COUNT(*) FROM user_perks WHERE expires_at > CURRENT_TIMESTAMP"
-        ).fetchone() or (0,)
-    )[0]
-
+    stats["active_perks"] = one("SELECT COUNT(*) FROM perks WHERE expires_at > CURRENT_TIMESTAMP")
     return stats

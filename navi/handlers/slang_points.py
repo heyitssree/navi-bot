@@ -9,7 +9,7 @@ import discord
 from navi.data.curse_data import contains_boli_trigger
 from navi.db.repos.settings import get_config_int
 from navi.services.levels import maybe_announce_levelup
-from navi.services.points import add_experience, update_boli_points
+from navi.services.points import award
 from navi.services.slang_scorer import get_slang_matches, score_message
 
 logger = logging.getLogger("navi.handlers.slang_points")
@@ -85,8 +85,7 @@ async def handle_slang_points(ctx, message: discord.Message) -> bool:
     triggered_words = contains_boli_trigger(message.content) if get_config_int(ctx.db, "feature_boli_points", 1) else []
     if triggered_words and not _is_slang_spam:
         points = len(triggered_words) * 5
-        update_boli_points(ctx.db, message.author.id, points)
-        add_experience(ctx.db, message.author.id, points)
+        award(ctx.db, message.author.id, points, points, reason="slang", detail=",".join(triggered_words))
         await maybe_announce_levelup(ctx, 
             message.author.mention, message.author.id, message.channel
         )
@@ -99,9 +98,8 @@ async def handle_slang_points(ctx, message: discord.Message) -> bool:
     if get_config_int(ctx.db, "feature_boli_points", 1) and not _is_slang_spam:
         slang_delta = score_message(message.content)
         if slang_delta != 0:
-            update_boli_points(ctx.db, message.author.id, slang_delta)
+            award(ctx.db, message.author.id, slang_delta, max(0, slang_delta), reason="slang", detail="dictionary")
             if slang_delta > 0:
-                add_experience(ctx.db, message.author.id, slang_delta)
                 await maybe_announce_levelup(ctx, 
                     message.author.mention, message.author.id, message.channel
                 )

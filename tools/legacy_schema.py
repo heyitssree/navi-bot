@@ -1,14 +1,13 @@
-# navi/db/migrations/m0001_baseline.py - the pre-v2 schema (was schema._create_tables).
+# tools/legacy_schema.py - the pre-v2 schema (was schema._create_tables / navi/db/migrations/m0001_baseline.py).
 #
-# Kept as Python rather than .sql: it is idempotent (CREATE IF NOT EXISTS), contains conditional ALTERs for
-# databases created by older versions, and seeds default config rows. Converting it to plain SQL would risk
-# changing behaviour on existing databases. Phase 3 adds 0002_v2.sql on top of it.
+# NOT used by the bot any more. It exists so tests and tools/migrate_v2.py can build a database in the old
+# 28-table layout (and so the old layout stays documented in code). apply(conn) is idempotent.
 from __future__ import annotations
 
 import logging
 import sqlite3
 
-from navi.db.repos.market import _seed_market_items
+from navi.db.repos.market import _MARKET_SEED_ITEMS
 
 logger = logging.getLogger("navi.db.migrations")
 
@@ -431,6 +430,13 @@ def apply(conn: sqlite3.Connection) -> None:
     conn.execute("CREATE INDEX IF NOT EXISTS idx_surv_guild ON survival_scores (guild_id)")
 
     # Seed market items if table is empty
-    _seed_market_items(conn)
+    if conn.execute("SELECT COUNT(*) FROM market_items").fetchone()[0] == 0:
+        for item in _MARKET_SEED_ITEMS:
+            conn.execute(
+                "INSERT OR IGNORE INTO market_items (item_id, name, emoji, base_price, current_price, volatility, description)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?)",
+                [item["item_id"], item["name"], item["emoji"], item["base_price"], item["current_price"],
+                 item["volatility"], item["description"]],
+            )
 
     conn.commit()

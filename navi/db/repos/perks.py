@@ -17,7 +17,7 @@ def has_active_perk(
 ) -> bool:
     """Return True if the user has a non-expired perk of the given type."""
     row = conn.execute(
-        "SELECT 1 FROM user_perks WHERE user_id = ? AND perk_type = ? AND expires_at > CURRENT_TIMESTAMP",
+        "SELECT 1 FROM perks WHERE user_id = ? AND perk = ? AND expires_at > CURRENT_TIMESTAMP",
         [user_id, perk_type],
     ).fetchone()
     return row is not None
@@ -38,12 +38,12 @@ def grant_perk(
     def _write() -> None:
         conn.execute(
             """
-            INSERT INTO user_perks (user_id, perk_type, expires_at)
+            INSERT INTO perks (user_id, perk, expires_at)
             VALUES (?, ?, datetime('now', '+' || ? || ' seconds'))
-            ON CONFLICT (user_id, perk_type) DO UPDATE SET
+            ON CONFLICT (user_id, perk) DO UPDATE SET
                 expires_at = CASE
-                    WHEN user_perks.expires_at > excluded.expires_at
-                    THEN user_perks.expires_at
+                    WHEN perks.expires_at > excluded.expires_at
+                    THEN perks.expires_at
                     ELSE excluded.expires_at
                 END
             """,
@@ -60,7 +60,7 @@ def get_perk_expiry(
 ) -> datetime | None:
     """Return the expiry datetime of a perk, or None if not active."""
     row = conn.execute(
-        "SELECT expires_at FROM user_perks WHERE user_id = ? AND perk_type = ? AND expires_at > CURRENT_TIMESTAMP",
+        "SELECT expires_at FROM perks WHERE user_id = ? AND perk = ? AND expires_at > CURRENT_TIMESTAMP",
         [user_id, perk_type],
     ).fetchone()
     if not row:
@@ -84,7 +84,7 @@ def clear_perk(
     """Delete a perk record (active or expired) for a user. Returns True if a row was removed."""
     def _write() -> int:
         cur = conn.execute(
-            "DELETE FROM user_perks WHERE user_id = ? AND perk_type = ?",
+            "DELETE FROM perks WHERE user_id = ? AND perk = ?",
             [user_id, perk_type],
         )
         conn.commit()

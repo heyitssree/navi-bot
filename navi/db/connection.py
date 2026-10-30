@@ -73,7 +73,23 @@ def connect(path: Path | None = None) -> sqlite3.Connection:
     conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA synchronous=NORMAL")
     conn.execute("PRAGMA foreign_keys=ON")
+    conn.execute("PRAGMA busy_timeout=5000")
     return conn
+
+
+class LegacyDatabaseError(RuntimeError):
+    pass
+
+
+def guard_legacy(conn: sqlite3.Connection) -> None:
+    """Refuse to run on a pre-v2 database (it would silently look empty). Convert it with tools/migrate_v2.py."""
+    names = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+    if "user_stats" in names and "users" not in names:
+        raise LegacyDatabaseError(
+            "This database uses the pre-v2 layout (user_stats table). Convert it first:\n"
+            "  python -m tools.migrate_v2 --src <old.db> --dst data/v2/navi.db --privacy data/v2/privacy.db\n"
+            "then set DB_PATH=data/v2/navi.db."
+        )
 
 
 def init_db(path: Path | None = None) -> sqlite3.Connection:
@@ -81,6 +97,7 @@ def init_db(path: Path | None = None) -> sqlite3.Connection:
     from navi.db.migrate import migrate
 
     conn = connect(path)
+    guard_legacy(conn)
     migrate(conn)
     logger.info("SQLite initialised at %s", path or DB_PATH)
     return conn

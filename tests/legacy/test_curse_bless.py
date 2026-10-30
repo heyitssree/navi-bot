@@ -101,18 +101,19 @@ async def test_protected_or_shielded_always_bounce(env, monkeypatch, perk):
 
 async def test_backfire_tier_is_configurable(env, monkeypatch):
     c = BY_TIER["Mild"]
-    env.execute("INSERT INTO bot_config (key, value_float) VALUES ('backfire_chance_mild', 0.90)")
-    env.commit()
+    set_config_float(env, "backfire_chance_mild", 0.90)
     force(monkeypatch, c, 0.50)
     await navi.on_message(make_message(CASTER, "navi <@2>", mentions=[TARGET]))
     assert points(env, CASTER.id) == -c["target_damage"]
 
 
-def test_found_not_fixed_set_config_float_is_noop_for_unseeded_key(env):
-    """Known quirk (CHANGELOG-v2 'Found, not fixed'): set_config_float only UPDATEs, and the
-    backfire_chance_* rows are never seeded, so /admin set on them silently does nothing."""
-    set_config_float(env, "backfire_chance_mild", 0.90)
+def test_fixed_in_v2_set_config_float_now_takes_effect(env):
+    """Phase 0 'Found, not fixed': set_config_float used to be a silent no-op for rows that were never seeded.
+    The settings table upserts, so the override is stored and read back."""
     assert get_config_float(env, "backfire_chance_mild", 0.10) == 0.10
+    set_config_float(env, "backfire_chance_mild", 0.90)
+    assert get_config_float(env, "backfire_chance_mild", 0.10) == 0.90
+    assert get_config_float(env, "chance.backfire_mild", 0.10) == 0.90   # registry key and old name are the same setting
 
 
 async def test_reply_curse_same_rules(env, monkeypatch):
@@ -187,7 +188,7 @@ async def test_potion_echo_sign_follows_first_curse(env, monkeypatch):
     assert points(env, TARGET.id) == -2 * c["target_damage"]
     assert points(env, CASTER.id) == 2 * c["invoker_reward"]
 
-    env.execute("UPDATE user_stats SET boli_points = 0")
+    env.execute("UPDATE users SET boli_points = 0")
     env.commit()
     force(monkeypatch, c, 0.0)  # first backfires
     await navi.on_message(make_message(CASTER, "navi <@2>", mentions=[TARGET]))
@@ -229,3 +230,19 @@ async def test_self_bless_target_only(env, monkeypatch):
     bless(monkeypatch, COMPLIMENTS[0], 0.99)
     await navi.on_message(make_message(CASTER, "chunk"))
     assert points(env, CASTER.id) == COMPLIMENTS[0]["points"]
+
+
+async def test_cursing_someone_who_never_posted_is_still_recorded(db, monkeypatch):
+    """The old curse_logs table kept such rows; the ledger needs a profile, so the target gets one."""
+    from navi.db.repos.points import get_bless_leaderboard, get_curse_leaderboard
+
+    ctx = make_ctx(db)
+    seed(db, CASTER)
+    ghost = FakeUser(77, "ghost")
+    force(monkeypatch, BY_TIER["Mild"], 0.99)
+    await pipeline.on_message(ctx, make_message(CASTER, "navi <@77>", mentions=[ghost]))
+    assert points(db, 77) == -BY_TIER["Mild"]["target_damage"]
+    assert get_curse_leaderboard(db)[0]["username"] == "ghost"
+    bless(monkeypatch, COMPLIMENTS[0], 0.99)
+    await pipeline.on_message(ctx, make_message(CASTER, "chunk <@77>", mentions=[ghost]))
+    assert get_bless_leaderboard(db)[0]["username"] == "ghost"
