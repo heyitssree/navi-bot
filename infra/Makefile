@@ -20,7 +20,7 @@ diff:       ## Show what a deploy would change (needs AWS credentials, profile n
 	AWS_PROFILE=$${AWS_PROFILE:-navi} cdk diff $(APP)
 
 bootstrap:  ## One-time CDK bootstrap of the account/region (admin credentials)
-	AWS_PROFILE=$${AWS_PROFILE:-navi} cdk bootstrap aws://$$(jq -r '.context["navi:account"]' cdk.json)/$$(jq -r '.context["navi:region"]' cdk.json)
+	AWS_PROFILE=$${AWS_PROFILE:-navi} cdk bootstrap $(APP) aws://$$(jq -r '.context["navi:account"]' cdk.json)/$$(jq -r '.context["navi:region"]' cdk.json)
 
 deploy:     ## Deploy via ../scripts/deploy.sh (image build + stacks + restart)
 	../scripts/deploy.sh
