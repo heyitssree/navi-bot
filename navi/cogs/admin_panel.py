@@ -73,6 +73,9 @@ class PanelView(discord.ui.View):
         try:
             stored = self.ctx.settings.set(key, value, by=interaction.user.id)
             self.notice = f"✅ {setting.label} is now **{format_value(setting, stored)}**." + (" (takes effect after a restart)" if setting.restart else "")
+            llm = self.ctx.llm
+            if key in ("ai.provider", "ai.fallback_provider") and llm is not None and stored not in ("off", *llm.providers):
+                self.notice += f"\n⚠️ {stored} is not configured on this server, so replies will use fallbacks."
         except SettingError as exc:
             self.notice = f"❌ {exc}"
 

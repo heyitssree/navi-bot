@@ -331,3 +331,38 @@ One registry, one control surface. 692 tests pass (stable over repeated runs).
 ### Notes
 - Live `/navi` predictions and generated templates still go through review (Phase 5); `/teach` entries from approved users use the same `/admin review` queue.
 - `rapidfuzz` and `pyyaml` are now in `requirements.txt`.
+
+## Phase 7 - Bedrock provider (branch `v2/phase-7-bedrock`)
+
+859 tests pass (botocore `Stubber`). **Not done: the live Bedrock call and the eval with Bedrock** - see "Live check".
+
+### Done
+- `llm/bedrock.py`: `BedrockProvider` on the Converse API (system + user message, `maxTokens`, `temperature`; token usage from `usage`; 2 retries, 5 s connect /
+  30 s read timeouts). Errors: Throttling / TooManyRequests / ServiceQuotaExceeded -> `rate_limited` (10 s), AccessDenied / Validation / ResourceNotFound /
+  UnrecognizedClient / expired credentials -> `config`, everything else including connection and read timeouts -> `server`. The model id is never hardcoded:
+  `ai.bedrock_model_id` setting, else `BEDROCK_MODEL_ID`. A startup check calls `GetInferenceProfile` (a missing permission only logs a warning).
+- The router now holds several providers (`add_provider`), with a **breaker per provider** and per-key cooldowns. `ai.provider` (gemini | bedrock | off) picks the
+  active one at use time. `ai.fallback_provider` (off by default) is tried when the active provider fails (server errors, cooldown, open breaker, configuration
+  error) but not for budget/cap/user limits or safety rejections; a fallback attempt counts as one budget unit. An unconfigured provider degrades to the
+  fallback texts, and `/admin set` / the panel warn when you pick one that is not configured on the server.
+- Config: `BEDROCK_MODEL_ID`, `AWS_REGION` (default `ap-south-1`); `llm/factory.py` builds Gemini and/or Bedrock from what is configured (startup only
+  requires one of them). `boto3` added to `requirements.txt`. `tools/eval_llm.py --provider bedrock` works (needs `BEDROCK_MODEL_ID`).
+- Tokens per call were already logged to `events` (`llm_call`); `/admin status` now shows calls and tokens per provider and an **estimated Bedrock cost today**,
+  using `ai.price_input_per_mtok` (0.10) and `ai.price_output_per_mtok` (0.50), kept in settings.
+- Tests: Stubber success / throttling / access denied / 5xx / timeouts, router behaviour with Bedrock errors (cooldown without breaker failure, config alert once,
+  3 server errors open the breaker), provider switching, fallback chain, per-provider breakers, cost estimate, status, configuration.
+
+### What I found in your AWS account (read-only calls via the AWS MCP server; account <account-id>, ap-south-1)
+- The profile is **`global.anthropic.claude-haiku-5-5`** ("Global Anthropic Claude Haiku 5.5", ACTIVE, SYSTEM_DEFINED; foundation models
+  `anthropic.claude-haiku-5-5` in ap-south-1 and global). Older Haiku 4.5 global/IN profiles also exist.
+- A test `Converse` call (20 tokens) returned **AccessDeniedException: "Your account is currently being verified"**. That is the new-account hold (normally under
+  2 hours); until it clears no model call works. Nothing else is wrong that I could see.
+
+### Live check (yours, once the account is verified)
+1. `aws bedrock-runtime converse --region ap-south-1 --model-id global.anthropic.claude-haiku-5-5 --messages '[{"role":"user","content":[{"text":"hi"}]}]' --inference-config maxTokens=20`
+2. `python -m tools.eval_llm --provider bedrock --phrase "<blocklisted phrase>"` and read `reports/eval-bedrock-<date>.md`; commit it under `reports/`.
+3. Only then `/admin set ai.provider bedrock` (optionally `ai.fallback_provider gemini`). SETUP.md has the exact steps and the IAM policy.
+
+### Notes
+- `ai.model` (the Gemini override) is ignored while Bedrock is active; `ai.max_output_tokens` now reaches Bedrock as `maxTokens`.
+- Haiku 5.5 prices in settings are the October 2026 list prices from the spec; update them if AWS changes them.

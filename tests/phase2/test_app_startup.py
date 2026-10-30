@@ -63,7 +63,7 @@ async def test_config_error_dm_goes_to_owner(tmp_path, monkeypatch):
     await bot.on_ready()
     from navi.llm.base import LLMError
 
-    ctx.llm._handle_config_error("free key", LLMError("config", "403 PERMISSION_DENIED"))
+    ctx.llm._handle_config_error(ctx.llm.provider, "free key", LLMError("config", "403 PERMISSION_DENIED"))
     await asyncio.sleep(0.05)
     assert len(sent) == 1 and "403" in sent[0]
     bot.fetch_user.assert_awaited_with(7)

@@ -148,6 +148,30 @@ def get_health_stats(conn: sqlite3.Connection) -> dict:
     return stats
 
 
+def llm_usage_by_provider_today(conn: sqlite3.Connection) -> dict[str, tuple[int, int, int]]:
+    """{provider: (calls, input tokens, output tokens)} since IST midnight (real provider calls only)."""
+    from datetime import datetime, timedelta, timezone
+
+    ist = timezone(timedelta(hours=5, minutes=30))
+    midnight = datetime.now(ist).replace(hour=0, minute=0, second=0, microsecond=0)
+    cutoff = midnight.astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+    rows = conn.execute(
+        """
+        SELECT COALESCE(json_extract(detail, '$.provider'), 'unknown'), COUNT(*),
+               COALESCE(SUM(json_extract(detail, '$.in')), 0), COALESCE(SUM(json_extract(detail, '$.out')), 0)
+        FROM events
+        WHERE kind = 'llm_call' AND created_at >= ? AND json_extract(detail, '$.outcome') IN ('ok', 'safety', 'error', 'empty')
+        GROUP BY 1
+        """,
+        [cutoff],
+    ).fetchall()
+    return {r[0]: (int(r[1]), int(r[2]), int(r[3])) for r in rows}
+
+
+def estimate_cost(tokens_in: int, tokens_out: int, price_in_per_mtok: float, price_out_per_mtok: float) -> float:
+    return tokens_in * price_in_per_mtok / 1_000_000 + tokens_out * price_out_per_mtok / 1_000_000
+
+
 def llm_usage_today(conn: sqlite3.Connection) -> tuple[int, int, int]:
     """(provider calls, input tokens, output tokens) since IST midnight, from events kind='llm_call'."""
     from datetime import datetime, timedelta, timezone

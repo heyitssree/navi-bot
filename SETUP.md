@@ -59,3 +59,52 @@ Open the port in your firewall only if a caller on another machine needs it. If 
 | `No Gemini API key found` | Set `GEMINI_API_KEY_FREE` or `GEMINI_API_KEY_PAID` |
 | `PrivilegedIntentsRequired` | Enable the three privileged intents in step 1 |
 | Slash commands missing | Global sync can take up to an hour; re-invite with `applications.commands` |
+
+
+## Amazon Bedrock (Claude Haiku 5.5)
+
+Navi can answer through Bedrock instead of Gemini. Gemini stays the default until you switch (`/admin set ai.provider bedrock`).
+
+### 1. Find the model id (never hardcoded)
+```bash
+aws bedrock list-inference-profiles --region ap-south-1 --type-equals SYSTEM_DEFINED \
+  --query "inferenceProfileSummaries[?contains(inferenceProfileId, 'haiku')].[inferenceProfileId,status]" --output table
+```
+For this account the profile is **`global.anthropic.claude-haiku-5-5`** (global cross-Region profile, ACTIVE in ap-south-1).
+Its two foundation-model ARNs (from `aws bedrock get-inference-profile --inference-profile-identifier <id>`):
+`arn:aws:bedrock:::foundation-model/anthropic.claude-haiku-5-5` and `arn:aws:bedrock:ap-south-1::foundation-model/anthropic.claude-haiku-5-5`.
+
+### 2. Configure
+```
+BEDROCK_MODEL_ID=global.anthropic.claude-haiku-5-5   # or /admin set ai.bedrock_model_id (restart to apply)
+AWS_REGION=ap-south-1
+AWS_PROFILE=navi                                     # local only; on EC2 the instance role is used
+```
+Check the profile works locally with `aws sts get-caller-identity --profile navi`.
+
+### 3. Permissions the bot's role needs
+The global profile needs three statements (profile in your region, the in-region model, the global model resource):
+```json
+{"Version": "2012-10-17", "Statement": [
+ {"Sid": "ProfileInRegion", "Effect": "Allow", "Action": "bedrock:InvokeModel",
+  "Resource": "arn:aws:bedrock:ap-south-1:<ACCOUNT_ID>:inference-profile/global.anthropic.claude-haiku-5-5"},
+ {"Sid": "ModelInRegion", "Effect": "Allow", "Action": "bedrock:InvokeModel",
+  "Resource": "arn:aws:bedrock:ap-south-1::foundation-model/anthropic.claude-haiku-5-5",
+  "Condition": {"StringEquals": {"bedrock:InferenceProfileArn": "arn:aws:bedrock:ap-south-1:<ACCOUNT_ID>:inference-profile/global.anthropic.claude-haiku-5-5"}}},
+ {"Sid": "ModelGlobal", "Effect": "Allow", "Action": "bedrock:InvokeModel",
+  "Resource": "arn:aws:bedrock:::foundation-model/anthropic.claude-haiku-5-5",
+  "Condition": {"StringEquals": {"aws:RequestedRegion": "unspecified",
+                                 "bedrock:InferenceProfileArn": "arn:aws:bedrock:ap-south-1:<ACCOUNT_ID>:inference-profile/global.anthropic.claude-haiku-5-5"}}},
+ {"Sid": "OptionalStartupCheck", "Effect": "Allow", "Action": "bedrock:GetInferenceProfile",
+  "Resource": "arn:aws:bedrock:ap-south-1:<ACCOUNT_ID>:inference-profile/global.anthropic.claude-haiku-5-5"}]}
+```
+(`Converse` is authorised by `bedrock:InvokeModel`.) If your account is in an AWS Organization, a Region-deny SCP must allow
+`aws:RequestedRegion = unspecified` for Bedrock or global profiles fail with AccessDeniedException. Phase 8's CDK stack will contain this policy.
+
+### 4. First live check
+```bash
+AWS_PROFILE=navi BEDROCK_MODEL_ID=global.anthropic.claude-haiku-5-5 python -m tools.eval_llm --provider bedrock --phrase "<a phrase from your blocklist>"
+```
+A new AWS account may answer every call with *"Your account is currently being verified"* (AccessDeniedException) for up to ~2 hours; if it lasts longer,
+write to aws-verification@amazon.com. Navi treats that as a configuration error: one owner DM, breaker open, fallbacks until it clears.
+Only switch with `/admin set ai.provider bedrock` after the report in `reports/` shows 0 post-filter violations. Optional: `/admin set ai.fallback_provider gemini`.

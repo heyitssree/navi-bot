@@ -26,7 +26,7 @@ def api_error(code, status=None, message="boom", details=None):
 class FakeProvider:
     """Behaviour per key: a value, an exception (raised as classified LLMError), or a callable returning either."""
 
-    name = "fake"
+    name = "gemini"
     paid_keys = frozenset({"paid"})
 
     def __init__(self, free=None, paid=None):
@@ -45,7 +45,7 @@ class FakeProvider:
         out = b() if callable(b) else b
         if isinstance(out, Exception):
             raise classify_error(out) if not isinstance(out, LLMError) else out
-        return LLMResponse(out, 1, 1, "fake", "fake-model", 1)
+        return LLMResponse(out, 1, 1, self.name, self.model, 1)
 
 
 def make(free=None, paid=None, clock=None, **kw):
@@ -208,7 +208,7 @@ async def test_events_hook_reports_outcomes():
     r, _ = make(free="ok")
     r.on_event = events.append
     await call(r)
-    assert events[0]["outcome"] == "ok" and events[0]["purpose"] == "qa" and events[0]["provider"] == "fake"
+    assert events[0]["outcome"] == "ok" and events[0]["purpose"] == "qa" and events[0]["provider"] == "gemini"
 
 
 # ---- model check ----

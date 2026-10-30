@@ -138,6 +138,11 @@ async def test_report_contents_and_verdict(filt):
     assert report.count("- `") >= 30 * 3 - 5 or len(results) < 90
 
 
-def test_cli_refuses_bedrock_until_phase_7(monkeypatch):
-    with pytest.raises(SystemExit):
+def test_cli_bedrock_needs_a_model_id_and_builds_a_provider(monkeypatch):
+    monkeypatch.delenv("BEDROCK_MODEL_ID", raising=False)
+    with pytest.raises(SystemExit, match="BEDROCK_MODEL_ID"):
         eval_llm.make_provider("bedrock")
+    monkeypatch.setenv("BEDROCK_MODEL_ID", "global.anthropic.claude-haiku-5-5")
+    monkeypatch.setenv("AWS_ACCESS_KEY_ID", "x"); monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "y")
+    provider = eval_llm.make_provider("bedrock")
+    assert provider.name == "bedrock" and provider.model == "global.anthropic.claude-haiku-5-5"

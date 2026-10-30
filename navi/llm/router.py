@@ -135,7 +135,6 @@ class LLMRouter:
         settings=None,
         clock: Callable[[], float] = time.monotonic,
     ) -> None:
-        self.provider = provider
         self._cache_lookup = cache_lookup  # (cache_type, name, curse_used) -> personalised text | None
         self.rpm_limit = rpm_limit
         self.free_tier_mode = free_tier_mode
@@ -150,8 +149,10 @@ class LLMRouter:
 
         self.enabled = True
         self.free_only = False
-        self.breaker = CircuitBreaker(clock=clock)
-        self._key_cooldown: dict[str, float] = {}
+        self._providers: dict[str, LLMProvider] = {provider.name: provider}
+        self._primary = provider.name              # used when no settings object is attached
+        self._breakers: dict[str, CircuitBreaker] = {provider.name: CircuitBreaker(clock=clock)}
+        self._key_cooldown: dict[str, float] = {}   # "provider:key" -> clock() when it may be tried again
         self._last_config_log = -CONFIG_LOG_INTERVAL
         self._last_config_alert = -CONFIG_ALERT_INTERVAL
         # Set by the app; called from the event loop with a short message for the owner.
@@ -164,12 +165,53 @@ class LLMRouter:
         self._window_start = time.monotonic()
         self._request_count = 0
         self.active_key = "none"
-        self.calls: dict[str, int] = {k: 0 for k in provider.key_names}
+        self.calls: dict[str, int] = {k or provider.name: 0 for k in provider.key_names}
         self.failed_calls = 0
 
     # ------------------------------------------------------------------
     # Introspection (used by /admin status)
     # ------------------------------------------------------------------
+
+    def add_provider(self, provider: LLMProvider) -> None:
+        """Register another provider (e.g. Bedrock next to Gemini). ai.provider chooses which one answers."""
+        self._providers[provider.name] = provider
+        self._breakers.setdefault(provider.name, CircuitBreaker(clock=self._clock))
+        for k in provider.key_names:
+            self.calls.setdefault(k or provider.name, 0)
+
+    @property
+    def providers(self) -> dict[str, LLMProvider]:
+        return dict(self._providers)
+
+    @property
+    def active_name(self) -> str:
+        """The provider chosen by ai.provider (or the primary one when no settings are attached)."""
+        if self._settings is None:
+            return self._primary
+        return self._settings.get("ai.provider")
+
+    @property
+    def provider(self) -> LLMProvider:
+        """The active provider; falls back to the primary one for display when ai.provider names an unregistered one."""
+        return self._providers.get(self.active_name) or self._providers[self._primary]
+
+    def breaker_for(self, name: str) -> CircuitBreaker:
+        return self._breakers[name]
+
+    @property
+    def breaker(self) -> CircuitBreaker:
+        return self._breakers[self.provider.name]
+
+    def _chain(self) -> list[LLMProvider]:
+        """Providers to try, in order: the active one, then ai.fallback_provider if it is set, different and registered."""
+        chain = []
+        active = self._providers.get(self.active_name)
+        if active is not None:
+            chain.append(active)
+        fallback = self._setting("ai.fallback_provider", "off")
+        if fallback in self._providers and fallback != self.active_name:
+            chain.append(self._providers[fallback])
+        return chain
 
     @property
     def model(self) -> str:
@@ -201,7 +243,12 @@ class LLMRouter:
 
     @property
     def is_enabled(self) -> bool:
-        return self.enabled and self._setting("ai.provider", "gemini") != "off"
+        if not self.enabled or self._setting("ai.provider", self._primary) == "off":
+            return False
+        if self.active_name not in self._providers:
+            logger.error("ai.provider is %r but that provider is not configured; replies use fallbacks.", self.active_name)
+            return False
+        return True
 
     @property
     def is_free_only(self) -> bool:
@@ -224,8 +271,9 @@ class LLMRouter:
         if self._settings is None:
             return req
         override = self._settings.get("ai.model")
-        if override and override != self.provider.model:
-            self.provider.model = override
+        active = self._providers.get(self.active_name)
+        if override and active is not None and active.name == "gemini" and override != active.model:
+            active.model = override           # ai.model is the Gemini override; Bedrock uses ai.bedrock_model_id
         tokens = int(self._settings.get("ai.max_output_tokens")) * (4 if req.purpose in LONG_PURPOSES else 1)
         return replace(req, temperature=float(self._settings.get("ai.temperature")), max_tokens=tokens)
 
@@ -258,8 +306,11 @@ class LLMRouter:
             "failure_count": self.failure_count,
             "open_until": self.open_until.isoformat() if self.open_until else "N/A",
             "active_key": self.active_key,
-            "free_key_available": "free" in self.provider.key_names,
-            "paid_key_available": "paid" in self.provider.key_names,
+            "free_key_available": "free" in getattr(self._providers.get("gemini"), "key_names", []),
+            "paid_key_available": "paid" in getattr(self._providers.get("gemini"), "key_names", []),
+            "providers": sorted(self._providers),
+            "fallback_provider": self._setting("ai.fallback_provider", "off"),
+            "breakers": {n: ("open" if b.is_open else "closed") for n, b in self._breakers.items()},
             "cooldowns": {k: int(v - now) for k, v in self._key_cooldown.items() if v > now},
             "circuit_seconds_left": int(self.breaker.seconds_left),
             "free_calls": free,
@@ -272,7 +323,7 @@ class LLMRouter:
             "rpm_limit": self.rpm,
             "daily_calls": self.daily_calls,
             "daily_call_cap": self._setting("ai.daily_call_cap", None),
-            "provider_setting": self._setting("ai.provider", "gemini"),
+            "provider_setting": self._setting("ai.provider", self._primary),
             "window_resets_in_seconds": max(0, 60 - int(time.monotonic() - self._window_start)),
             "free_tier_mode": self.free_tier_mode,
         }
@@ -282,19 +333,20 @@ class LLMRouter:
     # ------------------------------------------------------------------
 
     async def verify(self) -> str:
-        """Run the provider's model check (if it has one) and handle a configuration failure."""
+        """Run each provider's model check (if it has one) and handle configuration failures. Returns the active model."""
         import asyncio
 
-        check = getattr(self.provider, "verify_model_sync", None)
-        if check is None:
-            return self.model
-        model, err = await asyncio.get_running_loop().run_in_executor(None, check)
-        if err is not None:
-            if err.kind == "config":
-                self._handle_config_error("startup model check", err)
-            else:
-                logger.warning("Could not verify model (%s); keeping %s.", err, model)
-        return model
+        for name, provider in self._providers.items():
+            check = getattr(provider, "verify_model_sync", None)
+            if check is None:
+                continue
+            model, err = await asyncio.get_running_loop().run_in_executor(None, check)
+            if err is not None:
+                if err.kind == "config":
+                    self._handle_config_error(provider, "startup model check", err)
+                else:
+                    logger.warning("Could not verify %s model (%s); keeping %s.", name, err, model)
+        return self.model
 
     # ------------------------------------------------------------------
     # Main entry points
@@ -345,61 +397,76 @@ class LLMRouter:
         if PRIORITY.get(req.purpose, 1) >= 2 and left < self.yield_below_fraction:
             return await degraded("budget")
 
-        if not self.breaker.allow():
-            logger.warning("Circuit OPEN - fallback mode for ~%d more seconds.", int(self.breaker.seconds_left))
-            return await degraded("breaker")
+        chain = self._chain()
+        last_outcome = "breaker"
+        counted = False
+        for provider in chain:
+            breaker = self._breakers[provider.name]
+            if not breaker.allow():
+                logger.warning("%s circuit OPEN - skipping for ~%d more seconds.", provider.name, int(breaker.seconds_left))
+                last_outcome = "breaker"
+                continue
+            if not counted:                              # one budget unit per user-visible call, even with a fallback attempt
+                self._request_count += 1
+                self.daily_calls += 1
+                counted = True
+            outcome, resp, key = await self._call_provider(provider, breaker, req)
+            if outcome != "ok":
+                last_outcome = outcome
+                continue
+            verdict = safety.check_output(resp.text, req.purpose)
+            self.active_key = key or provider.name
+            self.calls[self.active_key] = self.calls.get(self.active_key, 0) + 1
+            if not verdict.ok:
+                logger.warning("Reply rejected by safety filter (%s).", ",".join(verdict.reasons))
+                self._emit(req, resp, outcome="safety")
+                self._reject(req, resp.text, verdict.reasons)
+                return RouterResult(fallback, True, "safety", resp.provider, resp.model)
+            self._emit(req, resp, outcome="ok")
+            return RouterResult(resp.text, False, "ok", resp.provider, resp.model)
+        return await degraded(last_outcome)
 
-        self._request_count += 1
-        self.daily_calls += 1
-        keys = [k for k in self.provider.key_names
-                if not (self.is_free_only and k in getattr(self.provider, "paid_keys", ()))]
-
+    async def _call_provider(self, provider: LLMProvider, breaker: CircuitBreaker, req: LLMRequest):
+        """Try one provider's keys in order. Returns (outcome, response, key); outcome is ok | error | cooldown."""
+        keys = [k for k in provider.key_names if not (self.is_free_only and k in getattr(provider, "paid_keys", ()))]
         server_failure = False
         tried = False
         for key in keys:
-            if self._clock() < self._key_cooldown.get(key, 0.0):
+            cd_key = f"{provider.name}:{key}"
+            if self._clock() < self._key_cooldown.get(cd_key, 0.0):
                 continue
             tried = True
             try:
-                resp = await self.provider.generate(req, key)
+                resp = await provider.generate(req, key)
             except LLMError as err:
                 if err.kind == "rate_limited":
                     delay = err.retry_after or DEFAULT_RETRY_AFTER
-                    self._key_cooldown[key] = self._clock() + delay
-                    logger.warning("%s %s key rate limited; cooling down %.0fs.", self.provider.name, key, delay)
+                    self._key_cooldown[cd_key] = self._clock() + delay
+                    logger.warning("%s %s key rate limited; cooling down %.0fs.", provider.name, key or "default", delay)
                     continue
                 if err.kind == "config":
-                    self._handle_config_error(f"{key} key", err)
+                    self._handle_config_error(provider, f"{key or provider.name} key", err)
                     self.failed_calls += 1
                     self.active_key = "none"
-                    return await degraded("error")
-                logger.warning("%s %s key server error: %s", self.provider.name, key, err)
+                    return "error", None, key
+                logger.warning("%s %s key server error: %s", provider.name, key or "default", err)
                 server_failure = True
                 continue
             if resp.text:
-                verdict = safety.check_output(resp.text, req.purpose)
-                self.breaker.record_success()
-                self.active_key = key
-                self.calls[key] = self.calls.get(key, 0) + 1
-                if not verdict.ok:
-                    logger.warning("Reply rejected by safety filter (%s).", ",".join(verdict.reasons))
-                    self._emit(req, resp, outcome="safety")
-                    self._reject(req, resp.text, verdict.reasons)
-                    return RouterResult(fallback, True, "safety", resp.provider, resp.model)
-                self._emit(req, resp, outcome="ok")
-                return RouterResult(resp.text, False, "ok", resp.provider, resp.model)
-            logger.warning("%s %s key returned an empty response.", self.provider.name, key)
+                breaker.record_success()
+                return "ok", resp, key
+            logger.warning("%s %s key returned an empty response.", provider.name, key or "default")
 
         self.failed_calls += 1
         self.active_key = "none"
         if server_failure:
-            self.breaker.record_failure()
-            logger.error("Server failure. Breaker failures: %d/%d", self.breaker.failures, self.breaker.threshold)
+            breaker.record_failure()
+            logger.error("%s server failure. Breaker failures: %d/%d", provider.name, breaker.failures, breaker.threshold)
         else:
             if not tried:
-                logger.warning("All keys are cooling down after rate limits.")
-            self.breaker.release_probe()
-        return await degraded("error" if tried else "cooldown")
+                logger.warning("All %s keys are cooling down after rate limits.", provider.name)
+            breaker.release_probe()
+        return ("error" if tried else "cooldown"), None, None
 
     async def cache_only(self, cache_type: str, name: str, fallback: str, curse_used: str | None = None) -> RouterResult:
         """Serve straight from the template pool without touching the provider (3rd+ call in a minute)."""
@@ -423,21 +490,21 @@ class LLMRouter:
             self._window_start = time.monotonic()
             self._request_count = 0
 
-    def _handle_config_error(self, where: str, err: LLMError) -> None:
+    def _handle_config_error(self, provider: LLMProvider, where: str, err: LLMError) -> None:
         now = self._clock()
         if now - self._last_config_log >= CONFIG_LOG_INTERVAL:
             self._last_config_log = now
-            logger.error("%s configuration error (%s, model=%s): %s", self.provider.name, where, self.model, err)
+            logger.error("%s configuration error (%s, model=%s): %s", provider.name, where, provider.model, err)
         if self.on_config_error and now - self._last_config_alert >= CONFIG_ALERT_INTERVAL:
             self._last_config_alert = now
             try:
                 self.on_config_error(
-                    f"{self.provider.name} config error ({where}, model `{self.model}`): {str(err)[:300]}. "
-                    f"Check the API key / model setting. Falling back to cached/canned replies until fixed."
+                    f"{provider.name} config error ({where}, model `{provider.model}`): {str(err)[:300]}. "
+                    f"Check the credentials / model setting. Falling back to cached/canned replies until fixed."
                 )
             except Exception:
                 logger.exception("Owner alert callback failed.")
-        self.breaker.trip()
+        self._breakers[provider.name].trip()
 
     def _reject(self, req: LLMRequest, text: str, reasons: list[str]) -> None:
         if self.on_reject is None:

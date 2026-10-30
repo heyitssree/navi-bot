@@ -10,7 +10,7 @@ from navi.settings.store import Settings, SettingError, format_value, parse, val
 # Every row of the spec's inventory (section 8.2), as registry keys. ".../" rows are expanded.
 INVENTORY = """
 system.killswitch system.testing_guilds system.panel_role
-ai.provider ai.gemini_keys ai.model ai.bedrock_model_id ai.rpm_budget ai.daily_call_cap ai.temperature ai.max_output_tokens
+ai.provider ai.fallback_provider ai.price_input_per_mtok ai.price_output_per_mtok ai.gemini_keys ai.model ai.bedrock_model_id ai.rpm_budget ai.daily_call_cap ai.temperature ai.max_output_tokens
 ai.qa_cooldown_seconds ai.qa_daily_cap ai.qa_cache_ttl_days
 safety.allow_malayalam_script safety.template_auto_approve safety.template_batch_size
 feature.navi feature.curses feature.passive_curse_replies feature.kochi_replies feature.boli_points feature.gambling
@@ -103,8 +103,9 @@ def test_parse_each_kind():
             parse(ch, bad)
     provider = resolve("ai.provider")
     assert parse(provider, "off") == "off"
-    with pytest.raises(SettingError, match="gemini, off"):
-        parse(provider, "bedrock")
+    assert parse(provider, "bedrock") == "bedrock"
+    with pytest.raises(SettingError, match="gemini, bedrock, off"):
+        parse(provider, "claude")
     chan = resolve("channel.bot_commands")
     assert parse(chan, "<#123456>") == 123456 and parse(chan, "987") == 987 and parse(chan, "none") is None
     with pytest.raises(SettingError):

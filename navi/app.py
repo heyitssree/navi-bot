@@ -21,7 +21,7 @@ from navi.db.repos.privacy import connect_privacy
 from navi.db.repos.events import count_llm_calls_today, log_command_event, log_llm_call, log_session_event
 from navi.db.repos.knowledge import seed_local_knowledge
 from navi.handlers import pipeline
-from navi.llm.gemini import GeminiProvider
+from navi.llm.factory import build_providers
 from navi.llm.router import LLMRouter
 from navi.services.backup import backup_loop, do_backup
 from navi.services.last_seen import flush_last_seen, last_seen_flush_loop
@@ -166,14 +166,16 @@ def register_events(bot: NaviBot, ctx: AppContext) -> None:
         log_session_event(ctx.db, "start")
 
         # LLM provider (free key first, paid as fallback) behind the router
-        provider = GeminiProvider(ctx.config.free_api_key, ctx.config.paid_api_key, ctx.config.llm_model)
+        providers = build_providers(ctx.config, ctx.settings)
         ctx.llm = LLMRouter(
-            provider,
+            providers[0],
             cache_lookup=make_cache_lookup(lambda: ctx.db),
             rpm_limit=10,
             settings=ctx.settings,
             free_tier_mode=ctx.config.free_tier_mode,
         )
+        for extra in providers[1:]:
+            ctx.llm.add_provider(extra)
         ctx.llm.on_event = lambda e: log_llm_call(
             ctx.db, e["provider"], e["model"], e["purpose"], e["outcome"], e["input_tokens"], e["output_tokens"],
             e["latency_ms"],
@@ -253,8 +255,8 @@ def main() -> None:
         logger.critical("DISCORD_TOKEN not found in .env. Stopping.")
         raise SystemExit(1)
 
-    if not config.free_api_key and not config.paid_api_key:
-        logger.critical("No Gemini API key found. Set GEMINI_API_KEY_FREE or GEMINI_API_KEY_PAID in .env.")
+    if not config.free_api_key and not config.paid_api_key and not config.bedrock_model_id:
+        logger.critical("No LLM configured. Set GEMINI_API_KEY_FREE / GEMINI_API_KEY_PAID and/or BEDROCK_MODEL_ID in .env.")
         raise SystemExit(1)
 
     logger.info(

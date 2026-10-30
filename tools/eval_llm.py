@@ -246,11 +246,13 @@ def make_provider(name: str):
         cfg = Config.from_env()
         return GeminiProvider(cfg.free_api_key, cfg.paid_api_key, cfg.llm_model)
     if name == "bedrock":
-        try:
-            from navi.llm.bedrock import BedrockProvider  # Phase 7
-        except ImportError:
-            raise SystemExit("The Bedrock provider arrives in Phase 7.")
-        return BedrockProvider(os.environ["BEDROCK_MODEL_ID"], os.getenv("AWS_REGION", "ap-south-1"))
+        from navi.llm.bedrock import DEFAULT_REGION, BedrockProvider
+
+        model_id = os.getenv("BEDROCK_MODEL_ID")
+        if not model_id:
+            raise SystemExit("Set BEDROCK_MODEL_ID to the global inference profile id "
+                             "(aws bedrock list-inference-profiles, e.g. global.anthropic.claude-haiku-5-5).")
+        return BedrockProvider(model_id, os.getenv("AWS_REGION", DEFAULT_REGION))
     raise SystemExit(f"unknown provider {name!r}")
 
 

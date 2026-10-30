@@ -22,7 +22,7 @@ from navi.cogs.admin_review import ReviewView
 from navi.context import AppContext
 from navi.db.connection import DB_PATH
 from navi.db.repos.counters import reset_gambling_count, reset_gemini_game_count
-from navi.db.repos.events import get_table_counts, llm_usage_today
+from navi.db.repos.events import estimate_cost, get_table_counts, llm_usage_by_provider_today
 from navi.db.repos.permissions import grant, list_permission, revoke
 from navi.db.repos.users import get_user_profile, reset_all_strikes, reset_user_strikes, upsert_user
 from navi.services.permissions import can_use_admin
@@ -87,6 +87,8 @@ class AdminGroup(app_commands.Group):
             await interaction.response.send_message(f"❌ {exc}", ephemeral=True)
             return
         note = " (takes effect after a restart)" if setting.restart else ""
+        if setting.key in ("ai.provider", "ai.fallback_provider") and stored not in ("off", *(ctx.llm.providers if ctx.llm else ())):
+            note += f"\n⚠️ The **{stored}** provider is not configured on this server (credentials / model id missing), so replies will use fallbacks."
         await interaction.response.send_message(f"✅ **{setting.label}** (`{setting.key}`) is now **{format_value(setting, stored)}**.{note}", ephemeral=True)
 
     @app_commands.command(name="get", description="Show a setting")
@@ -145,7 +147,11 @@ class AdminGroup(app_commands.Group):
         await interaction.response.defer(ephemeral=True)
         up = int((datetime.now(timezone.utc) - ctx.state.start_time).total_seconds())
         info = ctx.llm.status_dict() if ctx.llm else {}
-        calls, tokens_in, tokens_out = llm_usage_today(ctx.db)
+        usage = llm_usage_by_provider_today(ctx.db)
+        calls = sum(u[0] for u in usage.values())
+        bedrock_in, bedrock_out = usage.get('bedrock', (0, 0, 0))[1:]
+        cost = estimate_cost(bedrock_in, bedrock_out, ctx.settings.get('ai.price_input_per_mtok'), ctx.settings.get('ai.price_output_per_mtok'))
+        per_provider = ' · '.join(f'{n}: {c} calls, {i:,} in / {o:,} out' for n, (c, i, o) in sorted(usage.items())) or 'no calls yet'
         cap = ctx.settings.get("ai.daily_call_cap")
         try:
             db_size = f"{Path(DB_PATH).stat().st_size / (1024 * 1024):.2f} MB"
@@ -156,9 +162,9 @@ class AdminGroup(app_commands.Group):
         breaker = "OPEN 🔴" if info.get("circuit_open") else "closed 🟢"
         emb = discord.Embed(title="🔧 Navi status", color=discord.Color.red() if info.get("circuit_open") else discord.Color.green())
         emb.add_field(name="⏱️ Uptime", value=f"{up // 3600}h {(up % 3600) // 60}m {up % 60}s", inline=True)
-        emb.add_field(name="🧠 AI", value=f"Provider: **{ctx.settings.get('ai.provider')}**\nModel: `{info.get('model', 'n/a')}`\nKeys: {ctx.settings.get('ai.gemini_keys')}\nBreaker: {breaker}"
+        emb.add_field(name="🧠 AI", value=f"Provider: **{ctx.settings.get('ai.provider')}** (fallback: {ctx.settings.get('ai.fallback_provider')})\nModel: `{info.get('model', 'n/a')}`\nConfigured: {', '.join(info.get('providers', [])) or 'none'}\nGemini keys: {ctx.settings.get('ai.gemini_keys')}\nBreaker: {breaker}"
                       + (f" ({info.get('circuit_seconds_left')}s left)" if info.get("circuit_open") else ""), inline=True)
-        emb.add_field(name="📊 Today", value=f"Calls: **{calls}** / {cap} (**{max(0, cap - calls)}** left)\nTokens: {tokens_in:,} in · {tokens_out:,} out\nRPM: {info.get('rpm_used', 0)}/{info.get('rpm_limit', '?')}", inline=False)
+        emb.add_field(name="📊 Today", value=f"Calls: **{calls}** / {cap} (**{max(0, cap - calls)}** left)\n{per_provider}\nEstimated Bedrock cost today: **${cost:.4f}**\nRPM: {info.get('rpm_used', 0)}/{info.get('rpm_limit', '?')}", inline=False)
         emb.add_field(name="🗄️ Database", value=f"Size: {db_size}\nLast backup: {last_backup}\nReplication: n/a (AWS phase)\n" + " · ".join(f"{t} {n:,}" for t, n in get_table_counts(ctx.db).items()), inline=False)
         emb.add_field(name="🛡️ Switches", value=f"Kill switch: {'ON' if ctx.settings.get('system.killswitch') else 'off'}\nTesting guilds: {len(ctx.settings.get('system.testing_guilds'))}", inline=True)
         await interaction.followup.send(embed=emb, ephemeral=True)
