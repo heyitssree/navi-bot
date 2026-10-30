@@ -392,3 +392,10 @@ One registry, one control surface. 692 tests pass (stable over repeated runs).
 - Not verified live: one 20-token Gemma 3 12B call worked on a new account, the next ones hit that account's verification hold, so the system-prompt behaviour and output quality
   are untested. Prices in settings are still the Haiku placeholders: set Gemma's real prices before relying on `/admin status` cost.
 - A second account was in an AWS-managed organization whose SCP denies CloudFormation and EC2, like the first. Deployment is blocked until an account outside such an organization is used.
+
+### Phase 8 deployed (ap-southeast-2)
+- `cdk bootstrap` and `cdk deploy --all` ran against the new account (values from `infra/navi.env`, git-ignored). Network, Data, Compute and Monitoring are up; the instance is
+  InService on IMDSv2, registered with SSM, pulled the image from ECR, and `navi.service` is idle because `/navi/prod/run_enabled` does not exist yet.
+- Found and fixed on the way: `requirements.txt` had `matplotlib` and `rapidfuzz` glued together (from Phase 7), which broke the image build; a test now guards it.
+- Heartbeat alarm shows ALARM while the bot is idle (no heartbeat); the SNS email subscription still needs to be confirmed.
+- Still to do by the owner: `scripts/put-secrets.sh`, `scripts/put-config.sh`, confirm the SNS email, seed the database, `scripts/enable.sh`.
