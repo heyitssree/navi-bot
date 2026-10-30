@@ -132,7 +132,6 @@ COMPLIMENTS: list[dict] = [
     {"word": "kalakki",       "meaning": "rockstar",             "tier": "Hype & Legend",        "points": 15, "caster_share_pct": 25},
     # Tier 4 — Respect (15 pts, caster gets 25%)
     {"word": "karanavar",     "meaning": "wise elder",           "tier": "Respect",              "points": 15, "caster_share_pct": 25},
-    {"word": "tharavadi",     "meaning": "noble",                "tier": "Respect",              "points": 15, "caster_share_pct": 25},
 ]
 
 
