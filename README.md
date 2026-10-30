@@ -10,7 +10,7 @@ Gemini for the chatty parts; the curse/bless game itself uses no AI.
 - `/navi` - daily astrology reading with a Rashi per user. Repeat calls within a minute are served from cache.
 - @mention Navi to ask a question (Q&A in persona).
 - Passive curse reply: when a message contains a curse-list word there is a chance (default 25%) Navi answers and awards +1 Boli.
-- Kochi-slang detection: a chance (default 28%) of a condescending Thirontharam reply.
+- Kochi-slang replies are **off** (Navi no longer mocks anyone for how they speak); `feature.kochi_replies` exists only so it can be re-enabled deliberately.
 - Vibe check: if a channel turns heated (all-caps, severe words) Navi posts a calming message.
 - Link summaries (react with the summary emoji, default 📰), `/summ` (chat summary), `/kanmanilla` (missing-member notice).
 - Moderation: `/audit`, `/mod_tldr`, `/strike`, and a 3-strike system for severe curse words.
@@ -33,6 +33,10 @@ Gemini for the chatty parts; the curse/bless game itself uses no AI.
 **Privacy and knowledge**: `/privacy opt_out|opt_in|status` deletes all your data and makes Navi ignore you (and never target or mention you); `/teach add|list|remove`
 lets the owner, moderators and approved teachers extend Navi's local knowledge. Mention Q&A answers from knowledge or a cache before using the LLM, and in the
 configured bot-commands channel Navi follows reply chains (`feature.context_replies`, `channel.bot_commands`).
+
+**Ammavan** (another bot that proxy-curses on a leading "." and chats with AI on a leading "ammava"): set its Discord ID with `/admin set ammavan.bot_ids <id>`. Then, rarely, Navi curses Ammavan
+back when it proxy-curses (`chance.ammavan_curse_back`, 5%) and adds one witty remark to its AI answers (`chance.ammavan_witty_reply`, 3%), at most once a minute per channel. Everything else Ammavan does is left
+alone, every other bot is ignored, and Navi never starts a message with "." or "ammava" (so it cannot trigger Ammavan) or answers a reply to itself (no bot loops).
 
 **Chat redirect** (`feature.chat_redirect`, needs `channel.bot_commands`): outside the bot-commands channel a person can talk to Navi (`@Navi` questions) 4 times in 5 minutes. The next try gets one note
 pointing to the bot-commands channel, and Navi then ignores that person's AI conversation for 5 minutes. In bot-commands there is no limit. Only AI conversation is affected; commands, games and

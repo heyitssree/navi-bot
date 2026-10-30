@@ -410,3 +410,11 @@ One registry, one control surface. 692 tests pass (stable over repeated runs).
 ### Fix found on the first live run
 - `services/mentions.only_user()` gave discord.py bare integer ids, but `AllowedMentions.users` needs objects with an `.id`, so every reply using it raised `AttributeError` (@Navi answers,
   predictions, passive curse replies). Now wraps ids in `discord.Object`. The tests had used fakes, so a test now asserts `AllowedMentions.to_dict()` from the real library. Also set `MPLCONFIGDIR` in the image.
+
+### Kochi replies off; Ammavan reactions (owner request)
+- `feature.kochi_replies` now defaults to **off**: Navi no longer mocks people for Kochi slang. (Kochi words still lose Boli in the slang scorer; see the note to the owner.)
+- `services/ammavan.py` + pipeline hooks: for the bot IDs in `ammavan.bot_ids` only, Navi curses Ammavan back with a reviewed template when it proxy-curses (a person's "." text followed by Ammavan's
+  message within 15 s, `chance.ammavan_curse_back` 5%), and adds one short LLM remark to Ammavan's AI answers (`chance.ammavan_witty_reply` 3%), max one reaction per channel per minute.
+  Other Ammavan interactions are ignored; every other bot is still ignored; opted-out people are never involved; replies to Navi are ignored (no loops).
+- The safety filter now rejects any model text starting with "." or "ammava" so Navi can never trigger Ammavan. Settings: `feature.ammavan_reactions`, `ammavan.bot_ids`, `chance.ammavan_*`, `limit.ammavan_cooldown_seconds`.
+- Tests: 26 new in `tests/phase9/test_ammavan.py`.

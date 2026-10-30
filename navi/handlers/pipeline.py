@@ -5,8 +5,9 @@ Each handler is `async def handler(ctx, message) -> bool` and returns True when 
 
   guards (inline)  db not ready / master killswitch -> ignore
                    opted-out author (privacy) -> drop: no points, logging, replies or counters
-                   bots -> ignore; replies to Navi -> ignore, except in the bot-commands channel when context replies are on
+                   bots -> ignored, except Ammavan (services/ammavan.py: rare curse-back / witty remark); replies to Navi -> ignore, except in the bot-commands channel when context replies are on
    1. track_user     last_seen + first-message-per-session upsert                  never consumes
+      track_ammavan  remembers "." / "ammava..." texts per channel (Ammavan bot)    never consumes
    2. shortcuts      ";;name" local media shortcut                                 consumes when it matched
    3. vibe           channel heat tracker                                          never consumes
    4. slang_points   Boli for slang triggers + slang dictionary (spam gated)       never consumes
@@ -34,6 +35,7 @@ from navi.handlers.passive_curse import handle_passive_curse
 from navi.handlers.shortcuts import handle_shortcut
 from navi.handlers.slang_points import handle_slang_points
 from navi.handlers.vibe import handle_vibe
+from navi.services import ammavan
 
 logger = logging.getLogger("navi.handlers.pipeline")
 
@@ -49,8 +51,15 @@ async def track_user(ctx, message: discord.Message) -> bool:
     return False
 
 
+async def track_ammavan(ctx, message: discord.Message) -> bool:
+    """Remember "." and "ammava..." texts so Ammavan's answers can be recognised (never consumes)."""
+    ammavan.track_human(ctx, message)
+    return False
+
+
 HANDLERS = [
     track_user,
+    track_ammavan,
     handle_shortcut,
     handle_vibe,
     handle_slang_points,
@@ -76,8 +85,12 @@ async def on_message(ctx, message: discord.Message) -> None:
     if ctx.privacy.is_opted_out(message.author.id):
         return
 
-    # Ignore other bots
+    # Ignore other bots. The one exception is the Ammavan bot (ammavan.bot_ids), which Navi may rarely answer; nothing else ever reacts to a bot.
     if message.author.bot:
+        try:
+            await ammavan.handle_ammavan(ctx, message)
+        except Exception:
+            logger.exception("Ammavan reaction failed")
         return
 
     # Ignore replies to bot's own messages

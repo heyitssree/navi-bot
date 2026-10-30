@@ -16,3 +16,4 @@ from navi.llm.prompts.persona import _DEFAULT_SYSTEM_PROMPT, _LINK_SYSTEM_PROMPT
 from navi.llm.prompts.predictions import *  # noqa: F401,F403
 from navi.llm.prompts.qa import *  # noqa: F401,F403
 from navi.llm.prompts.summary import *  # noqa: F401,F403
+from navi.llm.prompts.ammavan import *  # noqa: F401,F403

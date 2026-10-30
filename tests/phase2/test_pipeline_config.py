@@ -16,7 +16,7 @@ from tests.legacy.harness import FakeUser, make_ctx, make_message
 
 def test_pipeline_order_is_the_documented_order():
     assert pipeline.HANDLERS == [
-        pipeline.track_user, handle_shortcut, handle_vibe, handle_slang_points,
+        pipeline.track_user, pipeline.track_ammavan, handle_shortcut, handle_vibe, handle_slang_points,
         handle_kochi, handle_context_reply, handle_mention_qa, handle_navi_command, handle_chunk_command, handle_passive_curse,
     ]
     doc = pipeline.__doc__

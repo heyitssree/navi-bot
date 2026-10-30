@@ -16,6 +16,7 @@ MALAYALAM_SCRIPT = re.compile(r"[ഀ-ൿ]")
 ZERO_WIDTH = re.compile(r"[​-‏⁠﻿]")
 LEET = str.maketrans({"0": "o", "1": "i", "3": "e", "4": "a", "5": "s", "7": "t", "@": "a", "$": "s"})
 MENTION = re.compile(r"<@[!&]?\d+>")
+BOT_TRIGGER = re.compile(r"\s*(\.|ammava)", re.I)
 SQUASH_MIN_LEN = 5
 DEFAULT_BLOCKLIST = Path(__file__).resolve().parent.parent / "data" / "safety" / "blocklist.txt"
 
@@ -113,6 +114,8 @@ class SafetyFilter:
             reasons.append("blocklist")
         if "@everyone" in text or "@here" in text or MENTION.search(text):
             reasons.append("mention")
+        if BOT_TRIGGER.match(text):
+            reasons.append("bot_trigger")                # a leading "." or "ammava" would trigger the Ammavan bot
         if len(text) > MAX_LEN.get(purpose, DEFAULT_MAX_LEN):
             reasons.append("too_long")
         return Verdict(ok=not reasons, reasons=reasons)

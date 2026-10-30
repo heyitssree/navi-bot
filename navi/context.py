@@ -36,6 +36,9 @@ class RuntimeState:
     limit_notice: dict[int, float] = field(default_factory=dict)   # user -> time we last told them they hit a Q&A limit
     chat_calls: dict[int, deque] = field(default_factory=dict)     # user -> times of recent AI-conversation attempts outside bot-commands
     chat_cooldown: dict[int, float] = field(default_factory=dict)  # user -> monotonic time until which Navi ignores their AI conversation
+    ammavan_dot: dict[int, tuple[int, str, float]] = field(default_factory=dict)    # channel -> (person, text after the dot, time) of the latest "." text
+    ammavan_ai: dict[int, tuple[int, int, float]] = field(default_factory=dict)     # channel -> (message id, person, time) of the latest "ammava..." text
+    ammavan_last: dict[int, float] = field(default_factory=dict)                    # channel -> time Navi last reacted to Ammavan
     recent_templates: dict[tuple[int, str], deque] = field(default_factory=dict)   # (user, kind) -> last 5 template ids
 
 
