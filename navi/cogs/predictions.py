@@ -41,7 +41,7 @@ class PredictionsCog(commands.Cog):
         user: discord.Member | None = None,
     ) -> None:
         ctx = self.ctx
-        if not ctx.settings.feat("feature_navi"):
+        if not ctx.settings.get("feature.navi"):
             await interaction.response.send_message(
                 "Navi predictions are currently disabled.", ephemeral=True
             )

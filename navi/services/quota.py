@@ -8,7 +8,6 @@ import discord
 
 from navi.db.repos.counters import get_daily_action_count, get_extra_actions
 
-DAILY_QUOTA = 20  # combined cosmic actions per day (curses + blessings + games)
 
 
 _OVER_QUOTA_MESSAGES: list[str] = [
@@ -37,12 +36,12 @@ HAS_EXTRAS_MESSAGES: list[str] = [
 ]
 
 
-# Over-quota game messages (30 combined plays/day across all games)
+# Over-quota game messages (combined plays/day across all games; the limit is the setting limit.game_daily)
 OVER_QUOTA_GAME_MESSAGES: list[str] = [
-    "{user}, you've hit the **30 combined game plays** limit for today. Resets at midnight IST!",
+    "{user}, you've hit the **{limit} combined game plays** limit for today. Resets at midnight IST!",
     "The cosmic casino is done with you for today, {user}. 30 plays across all games max. See you at midnight IST.",
-    "{user}, 30 combined gambling plays per day is the rule. The cosmos has spoken. Midnight IST resets it.",
-    "Out of plays, {user}. You've burned through all **30 combined chances** today. Try again after midnight IST.",
+    "{user}, {limit} combined gambling plays per day is the rule. The cosmos has spoken. Midnight IST resets it.",
+    "Out of plays, {user}. You've burned through all **{limit} combined chances** today. Try again after midnight IST.",
     "The dealer's cut you off, {user}. 30 plays (any game) per day. Midnight IST is your reset.",
 ]
 
@@ -67,12 +66,12 @@ async def check_cosmic_quota(ctx, invoker: discord.Member | discord.User,
 
     daily_count, extra_actions = await loop.run_in_executor(None, _db_reads)
 
-    if daily_count < DAILY_QUOTA or extra_actions > 0:
+    if daily_count < ctx.settings.get("limit.daily_cosmic_actions") or extra_actions > 0:
         return False
 
     # Quota exhausted and no extras — direct to shop.
     msg = random.choice(_OVER_QUOTA_MESSAGES).format(
-        invoker=invoker.display_name, quota=DAILY_QUOTA
+        invoker=invoker.display_name, quota=ctx.settings.get("limit.daily_cosmic_actions")
     )
     await reply_target.reply(msg)
     return True

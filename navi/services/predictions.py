@@ -16,7 +16,6 @@ from navi.db.repos.content import (
     save_prediction,
     save_user_prediction,
 )
-from navi.db.repos.settings import get_config_float
 from navi.db.repos.users import get_user_profile, increment_prediction_count, upsert_user
 from navi.llm.base import LLMRequest
 from navi.llm.prompts import get_navi_prompt, get_time_aware_system_prompt
@@ -25,13 +24,13 @@ logger = logging.getLogger("navi.services.predictions")
 
 
 def get_user_minute_count(ctx, user_id: int, increment: bool = True) -> int:
-    """Return how many times user has used /navi in the last 60 seconds.
+    """Return how many times user has used /navi in the last limit.navi_cooldown_seconds (default 60).
 
     If increment=True, also records this usage (call ONCE per invocation).
     Returns the count AFTER incrementing.
     """
     now = datetime.now(timezone.utc)
-    cutoff = now - timedelta(seconds=_RATE_WINDOW_SECONDS)
+    cutoff = now - timedelta(seconds=ctx.settings.get("limit.navi_cooldown_seconds"))
 
     # Clean expired timestamps
     ctx.state.user_usage.setdefault(user_id, [])
@@ -43,7 +42,6 @@ def get_user_minute_count(ctx, user_id: int, increment: bool = True) -> int:
     return len(ctx.state.user_usage[user_id])
 
 
-_RATE_WINDOW_SECONDS = 60
 
 
 async def get_navi_prediction(ctx, user_id: int, name: str, usage_count: int = 1) -> str:
@@ -84,7 +82,7 @@ async def get_navi_prediction(ctx, user_id: int, name: str, usage_count: int = 1
 
     # ---- 1st usage (or 2nd fell through): normal 50% daily cache check ----
     if usage_count == 1 and todays_pred:
-        cache_chance = get_config_float(ctx.db, "cache_reuse_chance", 0.50)
+        cache_chance = ctx.settings.get("chance.cache_reuse")
         if random.random() < cache_chance:
             logger.info("Recycling today's prediction from cache for %s", name)
             await asyncio.sleep(random.uniform(1.0, 2.5))

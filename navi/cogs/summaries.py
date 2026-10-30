@@ -12,7 +12,6 @@ from discord.ext import commands
 
 from navi.context import AppContext
 from navi.data.messages import FALLBACK_MESSAGES
-from navi.db.repos.settings import get_config_str
 from navi.db.repos.users import get_last_seen
 from navi.llm.base import LLMRequest
 from navi.llm.prompts import (
@@ -168,7 +167,7 @@ class SummariesCog(commands.Cog):
     @app_commands.describe(user="The member you're looking for")
     async def kanmanilla_slash(self, interaction: discord.Interaction, user: discord.Member) -> None:
         ctx = self.ctx
-        if not ctx.settings.feat("feature_kanmanilla"):
+        if not ctx.settings.get("feature.kanmanilla"):
             await interaction.response.send_message(
                 "Kanmanilla feature is currently disabled.", ephemeral=True
             )
@@ -236,10 +235,10 @@ class SummariesCog(commands.Cog):
         if ctx.db is None or payload.user_id == ctx.bot.user.id:
             return
 
-        if not ctx.settings.feat("feature_link_summary"):
+        if not ctx.settings.get("feature.link_summary"):
             return
 
-        summary_emoji = get_config_str(ctx.db, "link_summary_emoji", "📰")
+        summary_emoji = ctx.settings.get("emoji.link_summary")
         if str(payload.emoji) != summary_emoji:
             return
 

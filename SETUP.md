@@ -36,7 +36,7 @@ python -m navi
 
 The database (`data/navi.db`) and tables are created on first start. Set `DB_PATH` to keep it outside the repo.
 
-Try `/navi`, `/mypoints`, `/rank` and, as the owner, `/health`.
+Try `/navi`, `/mypoints`, `/rank` and, as the owner, `/admin status`.
 
 ## 4. Run on a server
 

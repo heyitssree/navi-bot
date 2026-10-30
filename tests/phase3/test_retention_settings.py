@@ -5,7 +5,7 @@ from pathlib import Path
 from navi.db.repos.users import upsert_user
 from navi.services.points import award
 from navi.services.retention import run_retention
-from navi.settings.store import FeatureFlags
+from navi.settings.store import Settings
 
 
 def _age(db, table, days, where="1=1", column="created_at"):
@@ -62,13 +62,13 @@ def test_ledger_compaction_keeps_sums_and_balances(db):
     assert run_retention(db)["ledger_compacted"] == 0                       # idempotent
 
 
-def test_feature_flags_cache_loads_overrides_and_persists(db):
-    flags = FeatureFlags(); flags.bind(db)
-    assert flags.feat("feature_curses") and flags.feat("feature.curses") and not flags.feat("system.killswitch")
-    flags.set_feature("master_killswitch", 1, updated_by=9)
-    assert flags.feat("system.killswitch")
-    other = FeatureFlags(); other.bind(db); other.load()
-    assert other.feat("master_killswitch") is True and other.get("chance.kochi_reply") == 0.28
+def test_settings_cache_loads_overrides_and_persists(db):
+    flags = Settings(); flags.bind(db)
+    assert flags.get("feature.curses") and not flags.get("system.killswitch")
+    flags.set("system.killswitch", True, by=9)
+    assert flags.get("system.killswitch")
+    other = Settings(); other.bind(db); other.load()
+    assert other.get("system.killswitch") is True and other.get("chance.kochi_reply") == 0.28
     assert db.execute("SELECT updated_by FROM settings WHERE key='system.killswitch'").fetchone()[0] == 9
 
 

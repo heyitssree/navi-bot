@@ -14,7 +14,7 @@ if TYPE_CHECKING:
 
     from navi.config import Config
     from navi.llm.router import LLMRouter
-    from navi.settings.store import FeatureFlags
+    from navi.settings.store import Settings
 
 
 @dataclass
@@ -38,7 +38,7 @@ class RuntimeState:
 class AppContext:
     bot: "discord.Client"
     config: "Config"
-    settings: "FeatureFlags"
+    settings: "Settings"
     state: RuntimeState = field(default_factory=RuntimeState)
     db: sqlite3.Connection | None = None      # opened in on_ready
     llm: "LLMRouter | None" = None            # created in on_ready (needs the DB for the template pool)

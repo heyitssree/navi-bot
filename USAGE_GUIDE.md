@@ -52,11 +52,11 @@ Shows top 10 users with their Rashi, Boli Points, and prediction count.
 
 ---
 
-### 🔧 `/health` — System Status *(Owner Only)*
+### 🔧 `/admin status` — System Status *(Owner Only)*
 Check Navi's internals. Only works if you're the bot owner.
 
 ```
-/health
+/admin status
 ```
 
 Shows:
@@ -155,12 +155,19 @@ Navi's mood shifts throughout the day:
 
 ## Admin Controls
 
-These work by typing in chat (no slash command needed). Owner only.
+All admin tools live under `/admin` (owner only, or the role set in `system.panel_role`). Replies are private.
 
-| Message | Effect |
+| Command | Effect |
 |---|---|
-| `navi syros stop` | Silences Navi everywhere |
-| `navi syros start` | Brings Navi back online |
+| `/admin panel` | Browse and edit every setting (categories, toggles, edit boxes, channel and role pickers, reset) |
+| `/admin set <key> <value>` / `get` / `reset` | Direct edits with autocomplete and validation |
+| `/admin killswitch on\|off` | Silences Navi everywhere except `/admin` |
+| `/admin status` | Uptime, AI provider/model, breaker, today's calls and tokens, DB size, last backup |
+| `/admin user points\|strikes_reset\|game_attempts_reset` | Per-user tools (point changes are recorded in the ledger as `admin`) |
+| `/admin teach allow\|revoke\|list` | Who may use `/teach` |
+| `/admin review` | Approve or reject pending templates and `/teach` entries, 5 at a time |
+| `/admin export` / `import` | Settings as a JSON file |
+| `/admin testing on\|off` | Testing mode for the current server (no limits, no rewards) |
 
 ---
 
@@ -177,7 +184,7 @@ Every Gemini call:
 ```
 
 - The bot **caches all responses** in a local database and reuses them smartly
-- `/health` shows exactly what's happening at any moment
+- `/admin status` shows exactly what's happening at any moment
 
 ---
 

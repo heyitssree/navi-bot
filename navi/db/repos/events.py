@@ -69,6 +69,24 @@ def log_llm_call(
     _db_write(_write)
 
 
+def count_llm_calls_today(conn: sqlite3.Connection) -> int:
+    """How many events since IST midnight were real provider calls."""
+    from datetime import datetime, timedelta, timezone
+
+    ist = timezone(timedelta(hours=5, minutes=30))
+    midnight = datetime.now(ist).replace(hour=0, minute=0, second=0, microsecond=0)
+    cutoff = midnight.astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+    row = conn.execute(
+        """
+        SELECT COUNT(*) FROM events
+        WHERE kind = 'llm_call' AND created_at >= ?
+          AND json_extract(detail, '$.outcome') IN ('ok', 'safety', 'error', 'empty')
+        """,
+        [cutoff],
+    ).fetchone()
+    return int(row[0]) if row else 0
+
+
 def export_stats_csv(
     conn: sqlite3.Connection,
     path: str = "data/user_stats_backup.csv",
@@ -85,7 +103,7 @@ def export_stats_csv(
 
 
 def get_table_counts(conn: sqlite3.Connection) -> dict[str, int]:
-    """Return row counts for the main tables. Used by /health."""
+    """Return row counts for the main tables. Used by /admin status."""
     tables = ["content", "users", "prediction_history", "points_ledger", "events"]
     counts = {}
     for table in tables:
@@ -95,7 +113,7 @@ def get_table_counts(conn: sqlite3.Connection) -> dict[str, int]:
 
 
 def get_health_stats(conn: sqlite3.Connection) -> dict:
-    """Return a rich set of runtime statistics for the /health command."""
+    """Return a rich set of runtime statistics for /admin status."""
     def one(sql: str, params: list | None = None):
         return (conn.execute(sql, params or []).fetchone() or (0,))[0]
 
@@ -128,3 +146,21 @@ def get_health_stats(conn: sqlite3.Connection) -> dict:
     # --- Active perks ---
     stats["active_perks"] = one("SELECT COUNT(*) FROM perks WHERE expires_at > CURRENT_TIMESTAMP")
     return stats
+
+
+def llm_usage_today(conn: sqlite3.Connection) -> tuple[int, int, int]:
+    """(provider calls, input tokens, output tokens) since IST midnight, from events kind='llm_call'."""
+    from datetime import datetime, timedelta, timezone
+
+    ist = timezone(timedelta(hours=5, minutes=30))
+    midnight = datetime.now(ist).replace(hour=0, minute=0, second=0, microsecond=0)
+    cutoff = midnight.astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+    row = conn.execute(
+        """
+        SELECT COUNT(*), COALESCE(SUM(json_extract(detail, '$.in')), 0), COALESCE(SUM(json_extract(detail, '$.out')), 0)
+        FROM events
+        WHERE kind = 'llm_call' AND created_at >= ? AND json_extract(detail, '$.outcome') IN ('ok', 'safety', 'error', 'empty')
+        """,
+        [cutoff],
+    ).fetchone()
+    return int(row[0]), int(row[1]), int(row[2])

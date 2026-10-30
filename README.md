@@ -30,8 +30,9 @@ Gemini for the chatty parts; the curse/bless game itself uses no AI.
 - Local media shortcuts: save an emoji or sticker and post it with `;;name` (`/my_media`).
 - `/navi_challenge` and `/type_race` exist but are disabled by default.
 
-**Admin** (`/admin ...`): kill switch, feature toggles, probabilities, cooldowns, testing mode, point adjustments, config view.
-`/health` (owner) shows uptime, active model and key, circuit state and table counts.
+**Admin** (`/admin ...`, owner or the `system.panel_role` role): `panel` (browse and edit every setting), `set` / `get` / `reset`, `killswitch`, `status`,
+`user points|strikes_reset|game_attempts_reset`, `teach allow|revoke|list`, `review`, `export` / `import`, `testing`. Every runtime knob is one line in
+`navi/settings/registry.py`; changes apply immediately.
 
 **Partner API**: a small FastAPI server (port `API_SERVER_PORT`, default 8080) lets a partner bot award Boli points.
 

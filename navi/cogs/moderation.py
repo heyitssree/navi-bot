@@ -43,7 +43,7 @@ class ModerationCog(commands.Cog):
         channel: discord.TextChannel | None = None,
     ) -> None:
         ctx = self.ctx
-        if not ctx.settings.feat("feature_audit"):
+        if not ctx.settings.get("feature.audit"):
             await interaction.response.send_message("Audit feature is currently disabled.", ephemeral=True)
             return
 
@@ -107,7 +107,7 @@ class ModerationCog(commands.Cog):
     @app_commands.default_permissions(manage_messages=True)
     async def mod_tldr_slash(self, interaction: discord.Interaction) -> None:
         ctx = self.ctx
-        if not ctx.settings.feat("feature_mod_tldr"):
+        if not ctx.settings.get("feature.mod_tldr"):
             await interaction.response.send_message("Mod TL;DR feature is currently disabled.", ephemeral=True)
             return
 

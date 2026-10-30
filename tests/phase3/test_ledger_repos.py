@@ -14,8 +14,7 @@ from navi.db.repos.perks import clear_perk, get_perk_expiry, grant_perk, has_act
 from navi.db.repos.permissions import grant, has_permission, list_permission, revoke
 from navi.db.repos.points import (get_bless_leaderboard, get_curse_leaderboard, get_gift_daily_total,
                                   get_recent_partner_logs, partner_score_exists)
-from navi.db.repos.settings import (get_all_configs, get_config_float, get_setting, get_testing_guilds, set_config_int,
-                                    set_setting, set_testing_guild)
+from navi.db.repos.settings import delete_setting, get_setting, load_overrides, set_setting
 from navi.db.repos.users import (get_active_user_ids_previous_day, get_leaderboard, get_user_profile, get_user_strikes,
                                  increment_user_strikes, reset_all_strikes, upsert_user)
 from navi.services import curse_game
@@ -164,36 +163,17 @@ def test_daily_counters(users):
 
 
 def test_settings_overrides_defaults_and_events(db):
-    assert get_setting(db, "chance.passive_curse_reply") == 0.25 and get_config_float(db, "curse_reply_chance", 9) == 0.25
+    assert get_setting(db, "chance.passive_curse_reply") == 0.25 and get_setting(db, "curse_reply_chance") == 0.25   # old name works
     set_setting(db, "chance.passive_curse_reply", 0.5, updated_by=7)
-    assert get_config_float(db, "curse_reply_chance", 9) == 0.5
+    assert get_setting(db, "curse_reply_chance") == 0.5
     ev = db.execute("SELECT kind, user_id, name, detail FROM events WHERE kind='setting_change'").fetchone()
     assert (ev[0], ev[1], ev[2], json.loads(ev[3])) == ("setting_change", 7, "chance.passive_curse_reply", {"old": 0.25, "new": 0.5})
-    set_config_int(db, "feature_gambling", 0)
-    assert get_setting(db, "feature.gambling") is False
+    assert delete_setting(db, "chance.passive_curse_reply", updated_by=7) and not delete_setting(db, "chance.passive_curse_reply")
+    assert get_setting(db, "chance.passive_curse_reply") == 0.25
     with pytest.raises(KeyError):
         get_setting(db, "not_a_setting")
-    assert "feature.gambling" in get_all_configs(db) and "state.lucky_draw_last_date" not in get_all_configs(db)
-    set_testing_guild(db, 5, True); set_testing_guild(db, 3, True); set_testing_guild(db, 5, False)
-    assert get_testing_guilds(db) == {3}
-
-
-def test_every_config_key_used_in_code_is_registered():
-    import re
-    from pathlib import Path
-
-    from navi.settings.registry import BY_KEY, BY_LEGACY
-
-    known = set(BY_KEY) | set(BY_LEGACY)
-    found = set()
-    for path in Path("navi").rglob("*.py"):
-        if "registry.py" in path.name:
-            continue
-        text = path.read_text()
-        found |= set(re.findall(r'(?:get|set)_config_(?:float|int|str)\(\s*(?:ctx\.db|db|conn|db_conn),\s*"([^"]+)"', text))
-        found |= set(re.findall(r'(?:feat|set_feature)\(\s*"([^"]+)"', text))
-        found |= set(re.findall(r'value="((?:feature_|backfire_chance_)[a-z_]+|[a-z_]+_chance)"', text))
-    assert found and not (found - known), found - known
+    set_setting(db, "feature.gambling", False)
+    assert load_overrides(db) == {"feature.gambling": False}
 
 
 # ------------------------------------------------------------------ content / media / market / games / events

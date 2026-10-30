@@ -142,3 +142,22 @@ def get_random_knowledge_terms(conn: sqlite3.Connection, num_categories: int = 3
         if rows:
             results.append({"category": cat, "term": rows[0][0], "description": rows[0][1]})
     return results
+
+
+def list_pending_knowledge(conn: sqlite3.Connection, limit: int = 5) -> list[dict]:
+    """/teach entries from approved users waiting for /admin review (oldest first)."""
+    rows = conn.execute(
+        "SELECT id, category, term, description, submitted_by FROM knowledge WHERE status = 'pending' ORDER BY id LIMIT ?",
+        [limit],
+    ).fetchall()
+    return [{"id": r[0], "category": r[1], "term": r[2], "description": r[3], "submitted_by": r[4]} for r in rows]
+
+
+def set_knowledge_status(conn: sqlite3.Connection, knowledge_id: int, status: str, approver_id: int | None = None) -> bool:
+    def _write() -> int:
+        cur = conn.execute(
+            "UPDATE knowledge SET status = ?, approved_by = ? WHERE id = ?", [status, approver_id, knowledge_id]
+        )
+        conn.commit()
+        return cur.rowcount
+    return _db_write(_write) > 0

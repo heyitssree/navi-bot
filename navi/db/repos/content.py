@@ -139,3 +139,23 @@ def save_movie_dialogue(conn: sqlite3.Connection, dialogue: str) -> None:
         ),
         conn.commit(),
     ))
+
+
+def list_pending_content(conn: sqlite3.Connection, limit: int = 5) -> list[dict]:
+    """Generated or rejected-for-review text waiting for /admin review (oldest first)."""
+    rows = conn.execute(
+        "SELECT id, kind, text, source FROM content WHERE status = 'pending' ORDER BY id LIMIT ?", [limit]
+    ).fetchall()
+    return [{"id": r[0], "kind": r[1], "text": r[2], "source": r[3]} for r in rows]
+
+
+def set_content_status(conn: sqlite3.Connection, content_id: int, status: str, reviewer_id: int | None = None) -> bool:
+    """Approve (active) or reject a content row. Returns True if the row existed."""
+    def _write() -> int:
+        cur = conn.execute(
+            "UPDATE content SET status = ?, reviewed_by = ?, reviewed_at = CURRENT_TIMESTAMP WHERE id = ?",
+            [status, reviewer_id, content_id],
+        )
+        conn.commit()
+        return cur.rowcount
+    return _db_write(_write) > 0

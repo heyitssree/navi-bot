@@ -23,7 +23,7 @@ from navi.db.repos.market import (
 )
 from navi.db.repos.users import get_user_profile
 from navi.services.market_engine import get_trend_arrow
-from navi.services.market_loop import MARKET_EXPIRY_DAYS
+from navi.services.features import deny_if_disabled
 from navi.services.points import award
 
 try:
@@ -96,6 +96,9 @@ class MarketGroup(app_commands.Group):
     def __init__(self) -> None:
         super().__init__(name="market", description="Boli Stock Market — buy and sell assets for profit")
 
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        return not await deny_if_disabled(interaction, "feature.market")
+
     @app_commands.command(name="view", description="Browse the Boli Stock Market")
     async def market_view(self, interaction: discord.Interaction) -> None:
         ctx = interaction.client.ctx
@@ -150,7 +153,7 @@ class MarketGroup(app_commands.Group):
             )
             return
 
-        expires = datetime.now(timezone.utc) + timedelta(days=MARKET_EXPIRY_DAYS)
+        expires = datetime.now(timezone.utc) + timedelta(days=ctx.settings.get("limit.market_expiry_days"))
         award(ctx.db, interaction.user.id, -total_cost, reason="market", detail=f"buy:{item['item_id']}:{quantity}")
         buy_holding(ctx.db, interaction.user.id, item["item_id"], quantity, item["current_price"], expires)
 

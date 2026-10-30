@@ -124,7 +124,7 @@ Back in Discord, test these:
 | `/navi` | Prediction + Rashi assigned on first use |
 | `/mypoints` | Shows your Boli Points and Rashi |
 | `/rank` | Leaderboard embed |
-| `/health` (owner only) | Status embed showing active key, RPM, circuit state |
+| `/admin status` (owner only) | Status embed showing active key, RPM, circuit state |
 | Say "machane" in chat | Condescending Thirontharam reply |
 | Say "kidilam" in chat | +5 Boli Points silently awarded |
 
@@ -200,7 +200,7 @@ gcloud compute scp navi-server:~/navi-bot/data/backup_stats.csv ./backup_stats.c
 |---|---|
 | `DISCORD_TOKEN not found` | Check `.env` is saved correctly with `cat .env` |
 | `No Gemini API key found` | Ensure `GEMINI_API_KEY_FREE` or `GEMINI_API_KEY_PAID` is in `.env` |
-| Bot shows `active_key: none` in `/health` | Both API keys are failing — check quotas in Google AI Studio |
+| Bot shows `active_key: none` in `/admin status` | Both API keys are failing — check quotas in Google AI Studio |
 | `#off-topic channel not found` | Set `HORRIBLESCOPE_CHANNEL=general` in `.env` to match your server |
 | Bot crashes on startup | Check `logs/bot.log` for the traceback: `cat logs/bot.log` |
 

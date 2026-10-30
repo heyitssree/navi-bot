@@ -8,14 +8,12 @@ from datetime import datetime, timedelta, timezone
 
 import discord
 
-from navi.db.repos.settings import get_config_str, set_config_str
 from navi.db.repos.users import get_active_user_ids_previous_day, get_top_n_from_user_ids
 from navi.services.points import award
 
 logger = logging.getLogger("navi.services.lucky_draw")
 
 
-_LUCKY_DRAW_AMOUNT = 200
 
 
 _LUCKY_DRAW_MESSAGES: list[str] = [
@@ -32,7 +30,7 @@ async def lucky_draw_loop(ctx) -> None:
     """Background loop that fires a lucky draw at 7:00am IST every day.
 
     Picks one random user from the top-10 most-active previous day members
-    and awards _LUCKY_DRAW_AMOUNT Boli Points. Announced in the general channel.
+    and awards the prize (economy.lucky_draw_amount) in Boli Points. Announced in the general channel.
     """
     _IST = timezone(timedelta(hours=5, minutes=30))
 
@@ -49,7 +47,9 @@ async def lucky_draw_loop(ctx) -> None:
         try:
             # Deduplicate: check we haven't already run today
             today_str = datetime.now(_IST).strftime("%Y-%m-%d")
-            last_run = get_config_str(ctx.db, "lucky_draw_last_date", "")
+            if not ctx.settings.get("feature.lucky_draw"):
+                continue
+            last_run = ctx.settings.get("state.lucky_draw_last_date")
             if last_run == today_str:
                 logger.info("Lucky draw already ran today (%s) — skipping.", today_str)
                 await asyncio.sleep(60)  # small extra sleep to avoid re-triggering
@@ -82,13 +82,14 @@ async def run_lucky_draw(ctx, announce_channel: discord.abc.Messageable | None =
         return "No top-10 candidates found — draw skipped."
 
     winner = random.choice(candidates)
-    award(ctx.db, winner["user_id"], _LUCKY_DRAW_AMOUNT, _LUCKY_DRAW_AMOUNT, reason="lucky_draw")
-    set_config_str(ctx.db, "lucky_draw_last_date", today_str)
+    amount = ctx.settings.get("economy.lucky_draw_amount")
+    award(ctx.db, winner["user_id"], amount, amount, reason="lucky_draw")
+    ctx.settings.set("state.lucky_draw_last_date", today_str)
 
     winner_mention = f"<@{winner['user_id']}>"
     msg = random.choice(_LUCKY_DRAW_MESSAGES).format(
         winner_mention=winner_mention,
-        amount=_LUCKY_DRAW_AMOUNT,
+        amount=amount,
     )
 
     if announce_channel is None:
@@ -107,10 +108,10 @@ async def run_lucky_draw(ctx, announce_channel: discord.abc.Messageable | None =
         await announce_channel.send(msg)
         logger.info(
             "Lucky draw winner: %s (user_id=%d) +%d Boli — announced in #%s.",
-            winner["username"], winner["user_id"], _LUCKY_DRAW_AMOUNT,
+            winner["username"], winner["user_id"], amount,
             getattr(announce_channel, "name", "?"),
         )
-        return f"Winner: {winner['username']} (+{_LUCKY_DRAW_AMOUNT} Boli)"
+        return f"Winner: {winner['username']} (+{amount} Boli)"
     else:
         logger.warning("Lucky draw: could not find any announce channel.")
-        return f"Winner: {winner['username']} (+{_LUCKY_DRAW_AMOUNT} Boli) — no announce channel found."
+        return f"Winner: {winner['username']} (+{amount} Boli) — no announce channel found."

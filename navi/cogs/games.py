@@ -10,7 +10,7 @@ from discord import app_commands
 from discord.ext import commands
 
 from navi.context import AppContext
-from navi.db.repos.counters import _GAME_DAILY_LIMIT, get_total_game_daily_count, increment_game_daily_count
+from navi.db.repos.counters import get_total_game_daily_count, increment_game_daily_count
 from navi.db.repos.users import get_user_profile
 from navi.services.points import award
 from navi.services.quota import OVER_QUOTA_GAME_MESSAGES
@@ -102,7 +102,7 @@ class GamesCog(commands.Cog):
         bet: app_commands.Range[int, 1, 50000],
     ) -> None:
         ctx = self.ctx
-        if not ctx.settings.feat("feature_gambling"):
+        if not ctx.settings.get("feature.gambling"):
             await interaction.response.send_message("Gambling is currently disabled.", ephemeral=True)
             return
         await interaction.response.defer(thinking=True)
@@ -117,8 +117,8 @@ class GamesCog(commands.Cog):
             await interaction.followup.send(err, ephemeral=True)
             return
 
-        if total_count >= _GAME_DAILY_LIMIT:
-            msg = random.choice(OVER_QUOTA_GAME_MESSAGES).format(user=interaction.user.display_name, game="Coin Flip")
+        if total_count >= ctx.settings.get("limit.game_daily"):
+            msg = random.choice(OVER_QUOTA_GAME_MESSAGES).format(user=interaction.user.display_name, game="Coin Flip", limit=ctx.settings.get("limit.game_daily"))
             await interaction.followup.send(msg, ephemeral=True)
             return
 
@@ -168,7 +168,7 @@ class GamesCog(commands.Cog):
         bet: app_commands.Range[int, 1, 50000],
     ) -> None:
         ctx = self.ctx
-        if not ctx.settings.feat("feature_gambling"):
+        if not ctx.settings.get("feature.gambling"):
             await interaction.response.send_message("Gambling is currently disabled.", ephemeral=True)
             return
         await interaction.response.defer(thinking=True)
@@ -183,8 +183,8 @@ class GamesCog(commands.Cog):
             await interaction.followup.send(err, ephemeral=True)
             return
 
-        if total_count >= _GAME_DAILY_LIMIT:
-            msg = random.choice(OVER_QUOTA_GAME_MESSAGES).format(user=interaction.user.display_name, game="Dice")
+        if total_count >= ctx.settings.get("limit.game_daily"):
+            msg = random.choice(OVER_QUOTA_GAME_MESSAGES).format(user=interaction.user.display_name, game="Dice", limit=ctx.settings.get("limit.game_daily"))
             await interaction.followup.send(msg, ephemeral=True)
             return
 
@@ -245,7 +245,7 @@ class GamesCog(commands.Cog):
         bet: app_commands.Range[int, 1, 50000],
     ) -> None:
         ctx = self.ctx
-        if not ctx.settings.feat("feature_gambling"):
+        if not ctx.settings.get("feature.gambling"):
             await interaction.response.send_message("Gambling is currently disabled.", ephemeral=True)
             return
         choice = choice.strip().lower()
@@ -274,8 +274,8 @@ class GamesCog(commands.Cog):
             await interaction.followup.send(err, ephemeral=True)
             return
 
-        if total_count >= _GAME_DAILY_LIMIT:
-            msg = random.choice(OVER_QUOTA_GAME_MESSAGES).format(user=interaction.user.display_name, game="Roulette")
+        if total_count >= ctx.settings.get("limit.game_daily"):
+            msg = random.choice(OVER_QUOTA_GAME_MESSAGES).format(user=interaction.user.display_name, game="Roulette", limit=ctx.settings.get("limit.game_daily"))
             await interaction.followup.send(msg, ephemeral=True)
             return
 
@@ -341,7 +341,7 @@ class GamesCog(commands.Cog):
         bet: app_commands.Range[int, 1, 50000],
     ) -> None:
         ctx = self.ctx
-        if not ctx.settings.feat("feature_gambling"):
+        if not ctx.settings.get("feature.gambling"):
             await interaction.response.send_message("Gambling is currently disabled.", ephemeral=True)
             return
         await interaction.response.defer(thinking=True)
@@ -356,8 +356,8 @@ class GamesCog(commands.Cog):
             await interaction.followup.send(err, ephemeral=True)
             return
 
-        if total_count >= _GAME_DAILY_LIMIT:
-            msg = random.choice(OVER_QUOTA_GAME_MESSAGES).format(user=interaction.user.display_name, game="Slots")
+        if total_count >= ctx.settings.get("limit.game_daily"):
+            msg = random.choice(OVER_QUOTA_GAME_MESSAGES).format(user=interaction.user.display_name, game="Slots", limit=ctx.settings.get("limit.game_daily"))
             await interaction.followup.send(msg, ephemeral=True)
             return
 

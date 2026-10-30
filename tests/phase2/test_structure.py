@@ -69,8 +69,7 @@ def test_no_module_level_state_in_app_code():
     assert not offenders, offenders
 
 
-def test_slash_command_surface_is_unchanged():
-    """Names, options, choices, descriptions and permissions equal the pre-refactor snapshot (26 top-level entries)."""
+def _command_tree():
     import asyncio
 
     from navi.app import build
@@ -82,10 +81,31 @@ def test_slash_command_surface_is_unchanged():
         await bot.setup_hook()
         return sorted((c.to_dict(bot.tree) for c in bot.tree.get_commands()), key=lambda x: (x.get("type", 1), x["name"]))
 
-    new = json.loads(json.dumps(asyncio.run(load()), default=str, sort_keys=True))
-    base = json.loads((ROOT / "tests/fixtures/command_tree_baseline.json").read_text())
-    assert [c["name"] for c in new] == [c["name"] for c in base]
+    return json.loads(json.dumps(asyncio.run(load()), default=str, sort_keys=True))
+
+
+REMOVED_IN_PHASE_4 = {"health"}
+ADMIN_SURFACE = {"panel", "set", "get", "reset", "killswitch", "testing", "status", "review", "export", "import", "user", "teach"}
+
+
+def test_slash_command_surface_outside_admin_is_unchanged():
+    """Everything except /admin (rebuilt in Phase 4) and the removed /health matches the pre-refactor snapshot."""
+    new = [c for c in _command_tree() if c["name"] != "admin"]
+    base = [c for c in json.loads((ROOT / "tests/fixtures/command_tree_baseline.json").read_text())
+            if c["name"] not in {"admin"} | REMOVED_IN_PHASE_4]
     assert new == base
+
+
+def test_admin_command_surface_matches_the_spec():
+    admin = next(c for c in _command_tree() if c["name"] == "admin")
+    assert {o["name"] for o in admin["options"]} == ADMIN_SURFACE
+    groups = {o["name"]: {x["name"] for x in o["options"]} for o in admin["options"] if o.get("options") and o["type"] == 2}
+    assert groups == {"user": {"points", "strikes_reset", "game_attempts_reset"}, "teach": {"allow", "revoke", "list"}}
+    assert admin["default_member_permissions"] == 1 << 3        # administrator
+    removed = {"toggle_killswitch", "toggle_feature", "set_chance", "set_cooldown", "set_summary_emoji", "partner_toggle",
+               "config_view", "reset_all_strikes", "set_points", "adjust_points", "reset_game_attempts"}
+    assert not removed & {o["name"] for o in admin["options"]}
+    assert "health" not in {c["name"] for c in _command_tree()}
 
 
 def test_every_cog_has_a_setup_function():

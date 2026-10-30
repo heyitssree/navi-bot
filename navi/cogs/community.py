@@ -11,20 +11,18 @@ from discord.ext import commands
 
 from navi.context import AppContext
 from navi.data.messages import MODA_INTROS, PENDING_WELCOME_MESSAGES, WELCOME_MESSAGES
-from navi.db.repos.settings import get_config_int
 from navi.db.repos.users import upsert_user
 
 logger = logging.getLogger("navi.cogs.community")
 
 
-_TEMP_VC_DURATION = 1800  # seconds (30 minutes)
 
 
 async def _temp_vc_expire(ctx, channel: discord.VoiceChannel, delay: int) -> None:
     """Sleep delay seconds then delete the voice channel if it still exists."""
     await asyncio.sleep(delay)
     try:
-        await channel.delete(reason="Temp VC expired after 30 minutes.")
+        await channel.delete(reason="Temp VC expired.")
         logger.info("Temp VC '%s' auto-deleted after timer expiry.", channel.name)
     except discord.NotFound:
         logger.debug("Temp VC '%s' was already deleted before timer fired.", channel.name)
@@ -59,7 +57,7 @@ class CommunityCog(commands.Cog):
         capacity: app_commands.Range[int, 2, 99],
     ) -> None:
         ctx = self.ctx
-        if not ctx.settings.feat("feature_temp_vc"):
+        if not ctx.settings.get("feature.temp_vc"):
             await interaction.response.send_message(
                 "Temp voice channel creation is currently disabled.",
                 ephemeral=True,
@@ -116,12 +114,12 @@ class CommunityCog(commands.Cog):
             )
             return
 
-        task = asyncio.create_task(_temp_vc_expire(ctx, vc, _TEMP_VC_DURATION))
+        task = asyncio.create_task(_temp_vc_expire(ctx, vc, ctx.settings.get("limit.temp_vc_minutes") * 60))
         ctx.state.temp_vc_registry[vc.id] = task
 
         await interaction.followup.send(
             f"🎙️ Voice channel **{vc.name}** created with a limit of **{capacity}** users.\n"
-            f"The stars grant you 30 minutes. Use them wisely."
+            f"The stars grant you {ctx.settings.get('limit.temp_vc_minutes')} minutes. Use them wisely."
         )
         logger.info(
             "Temp VC '%s' (id=%d, limit=%d) created by %s.",
@@ -169,7 +167,7 @@ class CommunityCog(commands.Cog):
 
         upsert_user(ctx.db, member.id, member.display_name)
 
-        if not get_config_int(ctx.db, "feature_welcome", 1):
+        if not ctx.settings.get("feature.welcome"):
             logger.info("Welcome messages disabled — skipping for %s", member.display_name)
             return
 

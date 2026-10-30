@@ -6,7 +6,6 @@ from discord import app_commands
 from discord.ext import commands
 
 from navi.context import AppContext
-from navi.services.quota import DAILY_QUOTA
 
 
 class HelpCog(commands.Cog):
@@ -32,7 +31,7 @@ class HelpCog(commands.Cog):
         )
 
         # ── Predictions ──────────────────────────────────────────────────────────
-        if ctx.settings.feat("feature_navi"):
+        if ctx.settings.get("feature.navi"):
             embed.add_field(
                 name="🔮 Predictions",
                 value=(
@@ -45,7 +44,7 @@ class HelpCog(commands.Cog):
             )
 
         # ── Curses & Blessings ───────────────────────────────────────────────────
-        if ctx.settings.feat("feature_curses"):
+        if ctx.settings.get("feature.curses"):
             embed.add_field(
                 name="⚡ Curses & Blessings",
                 value=(
@@ -63,7 +62,7 @@ class HelpCog(commands.Cog):
             embed.add_field(
                 name="🌀 Cosmic Actions (daily quota)",
                 value=(
-                    f"Curses, blessings, and gambling all share **{DAILY_QUOTA} cosmic actions/day**.\n"
+                    f"Curses, blessings, and gambling all share **{ctx.settings.get('limit.daily_cosmic_actions')} cosmic actions/day**.\n"
                     "Resets at **midnight IST**. Buy **+10 extra actions** from the shop to go beyond.\n"
                     "Exceed the limit on curses → you get reverse-cursed. On blessings → the cosmos notices."
                 ),
@@ -95,7 +94,7 @@ class HelpCog(commands.Cog):
         )
 
         # ── Gambling ─────────────────────────────────────────────────────────────
-        if ctx.settings.feat("feature_gambling"):
+        if ctx.settings.get("feature.gambling"):
             embed.add_field(
                 name="🎰 Gambling *(uses cosmic actions)*",
                 value=(
@@ -103,19 +102,19 @@ class HelpCog(commands.Cog):
                     "`/roll_dice bet` — Dice: over/under 1:1, exact 7 pays 4:1, specific sums up to 35:1\n"
                     "`/roulette bet` — 39-pocket wheel: color/odd/even 1:1, dozen 2:1, number 35:1\n"
                     "`/slots bet` — Slot machine: 2-match 3:1, 3-match 10:1, jackpot (7️⃣7️⃣7️⃣) 50:1\n"
-                    "Max bet **50,000 Boli** · **30 combined game plays/day** · Resets midnight IST"
+                    f"Max bet **50,000 Boli** · **{ctx.settings.get('limit.game_daily')} combined game plays/day** · Resets midnight IST"
                 ),
                 inline=False,
             )
 
         # ── Gemini Mini-Games — DISABLED (Gemini outputting inappropriate language) ──
         # gemini_game_lines = []
-        # if ctx.settings.feat("feature_navi_challenge"):
+        # if ctx.settings.get("feature.navi_challenge"):
         #     gemini_game_lines.append(
         #         "`/navi_challenge` — Get 3 random Trivandrum keywords, write a 2-sentence cosmic prediction, "
         #         "get Gemini-judged score (0–100 Boli + XP). **90 seconds, 2 attempts/day.**"
         #     )
-        # if ctx.settings.feat("feature_type_race"):
+        # if ctx.settings.get("feature.type_race"):
         #     gemini_game_lines.append(
         #         "`/type_race` — Gemini gives you an iconic **movie dialogue**; translate it into Malayalam script (0–100) "
         #         "or Trivandrum Manglish slang (max 50) within 60 seconds. Gemini scores strictly → Boli + XP. **2 attempts/day.**"
@@ -128,7 +127,7 @@ class HelpCog(commands.Cog):
         #     )
 
         # ── Boli Points (passive earning) ────────────────────────────────────────
-        if ctx.settings.feat("feature_boli_points"):
+        if ctx.settings.get("feature.boli_points"):
             embed.add_field(
                 name="🏆 Boli Points — Passive Earning",
                 value=(
@@ -140,7 +139,7 @@ class HelpCog(commands.Cog):
             )
 
         # ── Media Shortcuts ───────────────────────────────────────────────────────
-        if ctx.settings.feat("feature_local_media"):
+        if ctx.settings.get("feature.local_media"):
             embed.add_field(
                 name="🖼️ Media Shortcuts",
                 value=(
@@ -159,25 +158,25 @@ class HelpCog(commands.Cog):
             "`/summ` — Factual summary of recent chat (up to 100 messages)",
             "`/ping` — Check bot latency and your Boli balance",
         ]
-        if ctx.settings.feat("feature_kanmanilla"):
+        if ctx.settings.get("feature.kanmanilla"):
             other_lines.append("`/kanmanilla @user` — Dramatic missing-person notice for an absent member")
-        if ctx.settings.feat("feature_temp_vc"):
+        if ctx.settings.get("feature.temp_vc"):
             other_lines.append("`/temp_vc name capacity` — Temp voice channel (self-destructs in 30 min or when empty)")
         embed.add_field(name="🛠️ Other", value="\n".join(other_lines), inline=False)
 
         # ── Passive Reactions ─────────────────────────────────────────────────────
         passive_lines: list[str] = []
-        if ctx.settings.feat("feature_kochi_replies"):
+        if ctx.settings.get("feature.kochi_replies"):
             passive_lines.append("**Kochi slang** *(machane, machi, adipoli…)* → Condescending reply from a true Trivandrumite")
-        if ctx.settings.feat("feature_curse_replies"):
+        if ctx.settings.get("feature.passive_curse_replies"):
             passive_lines.append("**Curse words in chat** → 25% chance of a cosmic doom prediction")
-        if ctx.settings.feat("feature_vibe_check"):
+        if ctx.settings.get("feature.vibe_check"):
             passive_lines.append("**Chat heats up** → Navi de-escalates automatically")
-        if ctx.settings.feat("feature_link_summary"):
+        if ctx.settings.get("feature.link_summary"):
             passive_lines.append("**React 📰 on a link** → 3-bullet summary of the article")
-        if ctx.settings.feat("feature_welcome"):
+        if ctx.settings.get("feature.welcome"):
             passive_lines.append("**New member joins** → Welcome message after 1-minute delay")
-        if ctx.settings.feat("feature_strikes"):
+        if ctx.settings.get("feature.strikes"):
             passive_lines.append("**Severe language** → 3-strike system; strike 2 triggers jail role")
         if passive_lines:
             embed.add_field(name="👁️ Passive Reactions (automatic)", value="\n".join(passive_lines), inline=False)
@@ -187,16 +186,16 @@ class HelpCog(commands.Cog):
         is_mod = isinstance(member, discord.Member) and member.guild_permissions.manage_messages
         if is_mod:
             mod_lines = []
-            if ctx.settings.feat("feature_audit"):
+            if ctx.settings.get("feature.audit"):
                 mod_lines.append("`/audit @user [channel]` — AI audit of a user's messages against server rules")
-            if ctx.settings.feat("feature_mod_tldr"):
+            if ctx.settings.get("feature.mod_tldr"):
                 mod_lines.append("`/mod_tldr` — TL;DR summary of the current thread")
-            if ctx.settings.feat("feature_strikes"):
+            if ctx.settings.get("feature.strikes"):
                 mod_lines.append("`/strike @user reason` — Issue a manual strike")
             if mod_lines:
                 embed.add_field(name="🛡️ Mod Commands", value="\n".join(mod_lines), inline=False)
 
-        embed.set_footer(text=f"Powered by Gemini · {DAILY_QUOTA} cosmic actions/day · 30 gambling plays/day · Resets midnight IST")
+        embed.set_footer(text=f"Powered by Gemini · {ctx.settings.get('limit.daily_cosmic_actions')} cosmic actions/day · {ctx.settings.get('limit.game_daily')} gambling plays/day · Resets midnight IST")
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
 

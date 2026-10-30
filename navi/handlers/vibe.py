@@ -14,16 +14,12 @@ from navi.llm.prompts import get_time_aware_system_prompt, get_vibe_check_prompt
 logger = logging.getLogger("navi.handlers.vibe")
 
 
-_VIBE_WINDOW_SECONDS = 15
 
 
-_VIBE_MSG_THRESHOLD = 10
 
 
-_VIBE_CAPS_RATIO = 0.30
 
 
-_VIBE_COOLDOWN_SECONDS = 60  # don't fire again within 60s for the same channel
 
 
 def _is_heated_message(content: str) -> bool:
@@ -40,7 +36,7 @@ async def _check_vibe(ctx, message: discord.Message) -> None:
 
     # Cooldown guard — don't fire twice in 60s per channel
     last = ctx.state.vibe_last_fired.get(channel_id)
-    if last and (now - last).total_seconds() < _VIBE_COOLDOWN_SECONDS:
+    if last and (now - last).total_seconds() < ctx.settings.get("vibe.cooldown_seconds"):
         return
 
     # Maintain rolling deque for this channel
@@ -48,15 +44,15 @@ async def _check_vibe(ctx, message: discord.Message) -> None:
     tracker.append((now, message.content))
 
     # Purge messages older than the window
-    cutoff = now.timestamp() - _VIBE_WINDOW_SECONDS
+    cutoff = now.timestamp() - ctx.settings.get("vibe.window_seconds")
     while tracker and tracker[0][0].timestamp() < cutoff:
         tracker.popleft()
 
-    if len(tracker) < _VIBE_MSG_THRESHOLD:
+    if len(tracker) < ctx.settings.get("vibe.min_messages"):
         return
 
     heated = sum(1 for _, c in tracker if _is_heated_message(c))
-    if heated / len(tracker) < _VIBE_CAPS_RATIO:
+    if heated / len(tracker) < ctx.settings.get("vibe.heated_ratio"):
         return
 
     # Threshold met — fire vibe check
@@ -81,7 +77,7 @@ async def _check_vibe(ctx, message: discord.Message) -> None:
 async def handle_vibe(ctx, message: discord.Message) -> bool:
     """Vibe check: lightweight heat tracker, no API cost unless triggered."""
     # ---- Vibe Check: lightweight heat tracker — no API cost unless triggered ----
-    if ctx.settings.feat("feature_vibe_check"):
+    if ctx.settings.get("feature.vibe_check"):
         await _check_vibe(ctx, message)
     return False
 

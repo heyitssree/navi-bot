@@ -13,12 +13,12 @@ from discord.ext import commands
 
 from navi.context import AppContext
 from navi.db.repos.points import (
+    get_gift_daily_total,
     get_bless_leaderboard,
     get_curse_leaderboard,
     get_level_from_points,
     points_for_level,
 )
-from navi.db.repos.settings import get_config_str
 from navi.db.repos.users import (
     count_leaderboard_entries,
     get_leaderboard,
@@ -28,6 +28,7 @@ from navi.db.repos.users import (
 )
 from navi.services.levels import get_level_title
 from navi.services.lucky_draw import run_lucky_draw
+from navi.services.features import deny_if_disabled
 from navi.services.points import award
 from navi.services.templates import get_template
 
@@ -190,6 +191,8 @@ class EconomyCog(commands.Cog):
         in the current channel.
         """
         ctx = self.ctx
+        if await deny_if_disabled(interaction, "feature.lucky_draw"):
+            return
         app_info = await ctx.bot.application_info()
         is_owner = (
             (bool(ctx.config.owner_id) and interaction.user.id == ctx.config.owner_id)
@@ -204,11 +207,11 @@ class EconomyCog(commands.Cog):
 
         _IST = timezone(timedelta(hours=5, minutes=30))
         today_str = datetime.now(_IST).strftime("%Y-%m-%d")
-        last_run = get_config_str(ctx.db, "lucky_draw_last_date", "")
+        last_run = ctx.settings.get("state.lucky_draw_last_date")
         if last_run == today_str:
             await interaction.followup.send(
                 f"⚠️ Lucky draw already ran today ({today_str}). "
-                "Use `/admin adjust_points` to manually award Boli if needed.",
+                "Use `/admin user points` to manually award Boli if needed.",
                 ephemeral=True,
             )
             return
@@ -266,6 +269,8 @@ class EconomyCog(commands.Cog):
         recipient: discord.Member | None = None,
     ) -> None:
         ctx = self.ctx
+        if await deny_if_disabled(interaction, "feature.gift"):
+            return
         sender_id = interaction.user.id
 
         # Resolve recipient
@@ -316,6 +321,15 @@ class EconomyCog(commands.Cog):
         if sender_pts < actual_amount:
             await interaction.response.send_message(
                 f"Not enough Boli. You have 🍮 **{sender_pts}** but tried to gift **{actual_amount}**.",
+                ephemeral=True,
+            )
+            return
+
+        daily_limit = ctx.settings.get("limit.gift_daily")
+        if daily_limit and get_gift_daily_total(ctx.db, sender_id) + actual_amount > daily_limit:
+            await interaction.response.send_message(
+                f"Gift limit reached: you can gift at most **{daily_limit}** Boli per day "
+                f"(already gifted **{get_gift_daily_total(ctx.db, sender_id)}** today).",
                 ephemeral=True,
             )
             return

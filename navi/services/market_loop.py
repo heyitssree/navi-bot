@@ -51,4 +51,3 @@ async def market_hourly_loop(ctx) -> None:
             logger.error("Market hourly loop error: %s", exc)
 
 
-MARKET_EXPIRY_DAYS = 7  # holdings expire after this many days

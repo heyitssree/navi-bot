@@ -10,7 +10,6 @@ import discord
 from navi.data.curse_data import contains_curse_word, get_random_curse_back, get_random_doomed_prediction
 from navi.data.messages import FALLBACK_MESSAGES
 from navi.db.repos.content import save_prediction
-from navi.db.repos.settings import get_config_float, get_config_int
 from navi.llm.base import LLMRequest
 from navi.llm.prompts import get_curse_prompt, get_time_aware_system_prompt
 from navi.services.points import award
@@ -22,9 +21,9 @@ logger = logging.getLogger("navi.handlers.passive_curse")
 async def handle_passive_curse(ctx, message: discord.Message) -> bool:
     """Passive curse word reply (+1 Boli, LLM line with fallback templates)."""
     # ---- Passive curse word reply ----
-    curse_chance = get_config_float(ctx.db, "curse_reply_chance", 0.25)
+    curse_chance = ctx.settings.get("chance.passive_curse_reply")
     _curse_matched, curse_used = contains_curse_word(message.content)
-    if get_config_int(ctx.db, "feature_curse_replies", 1) and _curse_matched and random.random() < curse_chance:
+    if ctx.settings.get("feature.passive_curse_replies") and _curse_matched and random.random() < curse_chance:
         username = message.author.display_name
         user_id = message.author.id
         curse_used = curse_used or "that"

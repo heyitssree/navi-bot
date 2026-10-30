@@ -23,7 +23,6 @@ from navi.db.repos.media import (
     save_local_media,
     update_app_emoji_last_used,
 )
-from navi.db.repos.settings import get_config_int
 
 logger = logging.getLogger("navi.cogs.media")
 
@@ -100,7 +99,7 @@ async def _auto_save_media(
 
     # ---- Limits ----
     user_count = get_user_local_media_count(ctx.db, user_id)
-    max_per_user = get_config_int(ctx.db, "local_media_max_per_user", 20)
+    max_per_user = ctx.settings.get("limit.media_per_user")
     if user_count >= max_per_user:
         await interaction.followup.send(
             f"⚠️ You’ve hit your media limit ({max_per_user} items). "
@@ -110,7 +109,7 @@ async def _auto_save_media(
         return
 
     global_count = get_global_local_media_count(ctx.db)
-    max_global = get_config_int(ctx.db, "local_media_max_global", 200)
+    max_global = ctx.settings.get("limit.media_global")
     if global_count >= max_global:
         await interaction.followup.send(
             f"⚠️ The global media storage is full ({max_global} items). Contact an admin.",
@@ -322,7 +321,7 @@ class MediaCog(commands.Cog):
     async def my_media_slash(self, interaction: discord.Interaction) -> None:
         """Show the caller's saved ;;shortcut entries."""
         ctx = self.ctx
-        if not ctx.settings.feat("feature_local_media"):
+        if not ctx.settings.get("feature.local_media"):
             await interaction.response.send_message("Local media shortcuts are currently disabled.", ephemeral=True)
             return
         entries = list_user_local_media(ctx.db, interaction.user.id)
@@ -333,7 +332,7 @@ class MediaCog(commands.Cog):
             )
             return
 
-        max_per_user = get_config_int(ctx.db, "local_media_max_per_user", 20)
+        max_per_user = ctx.settings.get("limit.media_per_user")
         lines = []
         for e in entries:
             st = e.get("storage_type", "local")
@@ -362,7 +361,7 @@ class MediaCog(commands.Cog):
         name — no modal, no user input required. Users type ;;name in chat to replay.
         """
         ctx = self.ctx
-        if not ctx.settings.feat("feature_local_media"):
+        if not ctx.settings.get("feature.local_media"):
             await interaction.response.send_message("Local media shortcuts are currently disabled.", ephemeral=True)
             return
 
@@ -421,7 +420,7 @@ class MediaCog(commands.Cog):
     async def reply_with_emoji_context(self, interaction: discord.Interaction, message: discord.Message) -> None:
         """Right-click → Apps → Reply with Emoji: pick a saved emoji shortcut and reply to this message with it."""
         ctx = self.ctx
-        if not ctx.settings.feat("feature_local_media"):
+        if not ctx.settings.get("feature.local_media"):
             await interaction.response.send_message("Local media shortcuts are currently disabled.", ephemeral=True)
             return
         entries = list_user_local_media(ctx.db, interaction.user.id, media_type="emoji")
@@ -439,7 +438,7 @@ class MediaCog(commands.Cog):
     async def reply_with_sticker_context(self, interaction: discord.Interaction, message: discord.Message) -> None:
         """Right-click → Apps → Reply with Sticker: pick a saved sticker shortcut and reply to this message with it."""
         ctx = self.ctx
-        if not ctx.settings.feat("feature_local_media"):
+        if not ctx.settings.get("feature.local_media"):
             await interaction.response.send_message("Local media shortcuts are currently disabled.", ephemeral=True)
             return
         entries = list_user_local_media(ctx.db, interaction.user.id, media_type="sticker")

@@ -99,9 +99,6 @@ def increment_daily_refill_count(conn: sqlite3.Connection, user_id: int) -> int:
     return _increment(conn, user_id, REFILL)
 
 
-_GAME_DAILY_LIMIT = 30
-
-
 def get_game_daily_count(conn: sqlite3.Connection, user_id: int, game_name: str) -> int:
     """Return today's play count for the given game (IST)."""
     return _get(conn, user_id, f"game:{game_name}")
@@ -119,9 +116,6 @@ def get_total_game_daily_count(conn: sqlite3.Connection, user_id: int) -> int:
 def increment_game_daily_count(conn: sqlite3.Connection, user_id: int, game_name: str) -> int:
     """Increment today's play count for the given game. Returns the new count."""
     return _increment(conn, user_id, f"game:{game_name}")
-
-
-_GEMINI_GAME_DAILY_LIMIT = 2
 
 
 def get_gemini_game_daily_count(conn: sqlite3.Connection, user_id: int, game_name: str) -> int:

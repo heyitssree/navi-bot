@@ -1,7 +1,6 @@
 """Feature defaults now come from one place: the settings registry (Phase 3)."""
-from navi.db.repos.settings import get_config_int
 from navi.settings.registry import BY_KEY, resolve
-from navi.settings.store import FeatureFlags
+from navi.settings.store import Settings
 
 
 def test_llm_games_are_disabled_by_default():
@@ -11,12 +10,11 @@ def test_llm_games_are_disabled_by_default():
 
 def test_fresh_database_agrees_with_registry(db):
     """Phase 0 'Found, not fixed': the DB seed used to say 1 while bot.py said 0. No seed rows exist any more."""
-    assert get_config_int(db, "feature_navi_challenge", 1) == 0
-    assert get_config_int(db, "feature_type_race", 1) == 0
-    flags = FeatureFlags()
+    flags = Settings()
     flags.bind(db)
     flags.load()
-    assert flags.feat("feature_type_race") is False and flags.feat("feature_curses") is True
+    assert flags.get("feature.navi_challenge") is False and flags.get("feature.type_race") is False
+    assert flags.get("feature.curses") is True
 
 
 def test_every_default_is_valid_for_its_kind():

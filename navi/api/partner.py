@@ -35,10 +35,8 @@ logger = logging.getLogger("navi.api_server")
 
 # XP awarded equals half the Boli awarded (minimum 5 XP for any valid submission)
 _XP_RATIO = 0.5
-_MIN_XP = 5
 
-# Rate limit: max submissions per guild per minute
-_RATE_LIMIT_RPM = 10
+# Rate limit: max submissions per guild per minute (setting partner.rate_limit_rpm)
 _rate_counters: dict[int, list[float]] = defaultdict(list)
 
 
@@ -47,12 +45,12 @@ def _normalize_score(raw_points: int) -> int:
     return int(raw_points)
 
 
-def _is_rate_limited(guild_id: int) -> bool:
-    """Simple fixed-window rate limiter: max 10 requests per minute per guild."""
+def _is_rate_limited(guild_id: int, limit: int = 10) -> bool:
+    """Simple fixed-window rate limiter: max `limit` requests per minute per guild."""
     now = time.time()
     window = [t for t in _rate_counters[guild_id] if now - t < 60]
     _rate_counters[guild_id] = window
-    if len(window) >= _RATE_LIMIT_RPM:
+    if len(window) >= limit:
         return True
     _rate_counters[guild_id].append(now)
     return False
@@ -62,7 +60,7 @@ def _is_rate_limited(guild_id: int) -> bool:
 # FastAPI app factory — called from bot.py on_ready with the shared db_conn
 # ---------------------------------------------------------------------------
 
-def create_app(db_conn: sqlite3.Connection, allowed_guild_id: int | None) -> Any:
+def create_app(db_conn: sqlite3.Connection, allowed_guild_id: int | None, settings=None) -> Any:
     """Build and return the FastAPI app.
 
     db_conn:          The shared SQLite connection from the bot process.
@@ -79,8 +77,12 @@ def create_app(db_conn: sqlite3.Connection, allowed_guild_id: int | None) -> Any
         )
         return None
 
+    if settings is None:   # standalone use: registry defaults
+        from navi.settings.store import Settings
+
+        settings = Settings()
+
     from navi.db.repos.points import get_recent_partner_logs, partner_score_exists
-    from navi.db.repos.settings import get_config_int
     from navi.db.repos.users import upsert_user
     from navi.services.points import add_partner_points
 
@@ -112,7 +114,7 @@ def create_app(db_conn: sqlite3.Connection, allowed_guild_id: int | None) -> Any
             raise HTTPException(status_code=403, detail="Guild not authorised.")
 
         # Rate limit
-        if _is_rate_limited(payload.guild_id):
+        if _is_rate_limited(payload.guild_id, settings.get("partner.rate_limit_rpm")):
             raise HTTPException(status_code=429, detail="Rate limit exceeded. Max 10 req/min per guild.")
 
         # Deduplication
@@ -120,13 +122,13 @@ def create_app(db_conn: sqlite3.Connection, allowed_guild_id: int | None) -> Any
         if payload.game_id and partner_score_exists(db_conn, payload.game_id):
             raise HTTPException(status_code=409, detail=f"game_id '{payload.game_id}' already processed.")
 
-        # Check feature toggle — admin can disable partner point awards via /admin partner_toggle
-        if not get_config_int(db_conn, "feature_partner_api", 1):
+        # Check feature toggle — admin can disable partner point awards via the feature.partner_api setting
+        if not settings.get("feature.partner_api"):
             raise HTTPException(status_code=503, detail="Partner API awards are currently disabled by admin.")
 
         # Normalize score → external Boli (1:1, negatives kept as deductions)
         boli = _normalize_score(payload.points)
-        xp = max(_MIN_XP, int(boli * _XP_RATIO)) if boli > 0 else 0
+        xp = max(settings.get("partner.min_xp"), int(boli * _XP_RATIO)) if boli > 0 else 0
 
         # Ensure user row exists, then record in the partner pool (one ledger row: points + XP, idempotent on game_id)
         upsert_user(db_conn, payload.user_id, payload.username)
@@ -189,7 +191,7 @@ def create_app(db_conn: sqlite3.Connection, allowed_guild_id: int | None) -> Any
                 detail=f"game_id '{payload.game_id}' already processed.",
             )
 
-        if not get_config_int(db_conn, "feature_partner_api", 1):
+        if not settings.get("feature.partner_api"):
             raise HTTPException(status_code=503, detail="Partner API awards are currently disabled.")
 
         awarded: dict[str, int] = {}
@@ -213,7 +215,7 @@ def create_app(db_conn: sqlite3.Connection, allowed_guild_id: int | None) -> Any
                 pass
 
             upsert_user(db_conn, user_id, username)
-            xp = max(_MIN_XP, int(amount * _XP_RATIO))
+            xp = max(settings.get("partner.min_xp"), int(amount * _XP_RATIO))
             add_partner_points(
                 db_conn,
                 user_id,
@@ -241,7 +243,7 @@ def create_app(db_conn: sqlite3.Connection, allowed_guild_id: int | None) -> Any
     return app
 
 
-async def run_api_server(db_conn: sqlite3.Connection, allowed_guild_id: int | None = None) -> None:
+async def run_api_server(db_conn: sqlite3.Connection, allowed_guild_id: int | None = None, settings=None) -> None:
     """Start the uvicorn server as a coroutine (run with asyncio.create_task).
 
     Listens on 0.0.0.0:8080 by default. Override with API_SERVER_PORT env var.
@@ -252,7 +254,7 @@ async def run_api_server(db_conn: sqlite3.Connection, allowed_guild_id: int | No
         logger.error("uvicorn not installed — partner API server will not start. Run: pip install uvicorn[standard]")
         return
 
-    app = create_app(db_conn, allowed_guild_id)
+    app = create_app(db_conn, allowed_guild_id, settings)
     if app is None:
         return
 

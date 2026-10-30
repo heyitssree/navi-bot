@@ -7,9 +7,7 @@ import pytest
 from navi.data.curse_data import COMPLIMENTS, CURSE_WORDS
 from navi.db.repos.counters import add_extra_actions, get_daily_action_count, get_extra_actions
 from navi.db.repos.perks import grant_perk
-from navi.db.repos.settings import get_config_float, set_config_float
 from navi.handlers import curse_commands, pipeline
-from navi.services.quota import DAILY_QUOTA
 from tests.legacy.harness import FakeUser, make_ctx, make_message, points, seed, xp
 
 CASTER = FakeUser(1, "caster")
@@ -101,19 +99,22 @@ async def test_protected_or_shielded_always_bounce(env, monkeypatch, perk):
 
 async def test_backfire_tier_is_configurable(env, monkeypatch):
     c = BY_TIER["Mild"]
-    set_config_float(env, "backfire_chance_mild", 0.90)
+    _Holder.navi.ctx.settings.set("chance.backfire_mild", 0.90)
     force(monkeypatch, c, 0.50)
     await navi.on_message(make_message(CASTER, "navi <@2>", mentions=[TARGET]))
     assert points(env, CASTER.id) == -c["target_damage"]
 
 
-def test_fixed_in_v2_set_config_float_now_takes_effect(env):
-    """Phase 0 'Found, not fixed': set_config_float used to be a silent no-op for rows that were never seeded.
-    The settings table upserts, so the override is stored and read back."""
-    assert get_config_float(env, "backfire_chance_mild", 0.10) == 0.10
-    set_config_float(env, "backfire_chance_mild", 0.90)
-    assert get_config_float(env, "backfire_chance_mild", 0.10) == 0.90
-    assert get_config_float(env, "chance.backfire_mild", 0.10) == 0.90   # registry key and old name are the same setting
+def test_backfire_chance_setting_takes_effect_and_validates(env):
+    """Phase 0 'Found, not fixed': /admin edits to the backfire chances used to be silent no-ops."""
+    from navi.settings.store import SettingError
+
+    settings = _Holder.navi.ctx.settings
+    assert settings.get("chance.backfire_mild") == 0.10
+    settings.set("chance.backfire_mild", 0.90)
+    assert settings.get("chance.backfire_mild") == 0.90
+    with pytest.raises(SettingError):
+        settings.set("chance.backfire_mild", 1.5)
 
 
 async def test_reply_curse_same_rules(env, monkeypatch):
@@ -144,9 +145,9 @@ async def test_curse_on_bot_user_is_deflected_without_points(env, monkeypatch):
 async def test_quota_accounting_and_block(env, monkeypatch):
     c = BY_TIER["Mild"]
     force(monkeypatch, c, 0.99)
-    for _ in range(DAILY_QUOTA):
+    for _ in range(20):
         await navi.on_message(make_message(CASTER, "navi <@2>", mentions=[TARGET]))
-    assert get_daily_action_count(env, CASTER.id) == DAILY_QUOTA
+    assert get_daily_action_count(env, CASTER.id) == 20
     before = points(env, TARGET.id)
     blocked = make_message(CASTER, "navi <@2>", mentions=[TARGET])
     await navi.on_message(blocked)
@@ -157,12 +158,12 @@ async def test_quota_accounting_and_block(env, monkeypatch):
 async def test_extra_actions_allow_over_quota_and_are_consumed(env, monkeypatch):
     c = BY_TIER["Mild"]
     force(monkeypatch, c, 0.99)
-    for _ in range(DAILY_QUOTA):
+    for _ in range(20):
         await navi.on_message(make_message(CASTER, "navi <@2>", mentions=[TARGET]))
     add_extra_actions(env, CASTER.id, 2)
     await navi.on_message(make_message(CASTER, "navi <@2>", mentions=[TARGET]))
     assert get_extra_actions(env, CASTER.id) == 1
-    assert get_daily_action_count(env, CASTER.id) == DAILY_QUOTA + 1
+    assert get_daily_action_count(env, CASTER.id) == 20 + 1
 
 
 async def test_potion_echo_sign_follows_first_curse(env, monkeypatch):

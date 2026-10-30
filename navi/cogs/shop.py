@@ -18,6 +18,7 @@ from navi.db.repos.counters import (
 )
 from navi.db.repos.perks import get_perk_expiry, grant_perk
 from navi.db.repos.users import get_user_profile, upsert_user
+from navi.services.features import deny_if_disabled
 from navi.services.points import award
 from navi.services.quota import HAS_EXTRAS_MESSAGES
 
@@ -76,6 +77,9 @@ class ShopGroup(app_commands.Group):
 
     def __init__(self):
         super().__init__(name="shop", description="Boli Marketplace — spend Boli Points on cosmic perks")
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        return not await deny_if_disabled(interaction, "feature.shop")
 
     @app_commands.command(name="view", description="Browse available items in the Boli Marketplace")
     async def view(self, interaction: discord.Interaction) -> None:

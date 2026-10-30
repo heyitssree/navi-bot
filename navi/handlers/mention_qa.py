@@ -25,6 +25,8 @@ async def handle_mention_qa(ctx, message: discord.Message) -> bool:
             .replace(f"<@!{ctx.bot.user.id}>", "")
             .strip()
         )
+        if not ctx.settings.get("feature.mention_qa"):
+            return True   # switched off: stay silent (and keep the message away from the other handlers)
         if content_without_ping and not contains_curse_word(message.content)[0]:
             system_prompt = get_time_aware_system_prompt(ctx.db, username=message.author.display_name)
             user_prompt = get_qa_prompt(
@@ -39,6 +41,7 @@ async def handle_mention_qa(ctx, message: discord.Message) -> bool:
                     LLMRequest(purpose="qa", system=system_prompt, prompt=user_prompt),
                     fallback=random.choice(FALLBACK_MESSAGES),
                     name=message.author.display_name,
+                    user_id=message.author.id,
                     cache_type="qa",
                 )
                 reply, _ = _res.text, _res.from_cache

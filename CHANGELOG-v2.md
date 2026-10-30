@@ -190,3 +190,50 @@ every `bot_config` key is mapped or intentionally dropped (the tool raises on an
   (the command surface test, startup test against a fresh v2 DB, and 560+ tests pass).
 - Settings reads still use the legacy call-site names; Phase 4 replaces them with registry keys and builds the panel.
 - `AppContext.privacy_db` and the privacy gate arrive in Phase 6 (the file and table exist and are created by the migration).
+
+## Phase 4 - Settings registry and admin panel (branch `v2/phase-4-settings`)
+
+One registry, one control surface. 692 tests pass (stable over repeated runs).
+
+### Done
+- `settings/registry.py` holds all 77 settings from the spec inventory (System, AI, Safety, Features, Chances, Limits, Channels, Privacy;
+  kinds bool/int/float/str/choice/channel/role/id_list; min/max/choices/legacy_keys/hidden/restart). `settings/store.py` (`ctx.settings`) parses,
+  validates (clear error text), caches, persists with `updated_by` + a `setting_change` event, resets, exports/imports and notifies observers.
+- Every `get_config_*` / `set_config_*` / `feat()` / `set_feature()` call site was replaced by `ctx.settings.get("<registered key>")` (a test greps the
+  tree for leftovers and checks every literal key is registered; another test requires every registry entry to have a consumer, except the ones
+  whose features arrive in Phases 5-7, listed in the test).
+- Constants moved into settings and read at use time: cosmic-action quota, gambling and LLM-game daily limits, market holding expiry, temp VC lifetime,
+  lucky-draw prize, slang spam (5 values), vibe check (4), partner rate limit and minimum XP, mod-alerts channel (falls back to MOD_CHANNEL_NAME),
+  link-summary emoji. Help texts that quoted "20" or "30" now show the live values.
+- New switches: `feature.mention_qa`, `.market`, `.shop`, `.gift`, `.lucky_draw` (the market and shop groups answer "switched off" through
+  `interaction_check`); `limit.gift_daily`; `system.panel_role`.
+- LLM router reads the `ai.*` settings live: provider on/off, free-only keys, RPM budget, daily call cap (seeded from today's `events` after a restart),
+  temperature, max output tokens (4x for summaries and audits), model override, and a per-user cooldown + daily cap for Q&A with in-character replies.
+- `/admin` rebuilt: `panel`, `set|get|reset` (with autocomplete), `killswitch`, `testing`, `status`, `user points|strikes_reset|game_attempts_reset`,
+  `teach allow|revoke|list`, `review` (5 at a time, approve/reject, loads the next batch), `export`/`import`. Gated by `default_permissions(administrator)` plus
+  an owner / panel-role check in code. Panel: ephemeral, 10-minute timeout, invoker only, category -> setting views with toggle / edit modal with
+  validation / choice select / channel and role pickers / reset / back, paginated at 25, a confirmation or error line after each change.
+- Removed: `toggle_killswitch`, `toggle_feature`, `set_chance`, `set_cooldown`, `set_summary_emoji`, `partner_toggle`, `config_view`, `reset_all_strikes`,
+  `set_points`, `adjust_points`, `reset_game_attempts`, `/health`, and the `navi syros stop|start` text command (the owner-text handler is gone from the pipeline).
+- Migration `0002_settings_keys.sql` renames four Phase 3 keys (`feature.curse_replies`, `feature.link_summary_emoji`, `limit.local_media_max_*`);
+  `data/v2/navi.db` is already on version 2.
+
+### Behaviour changes (all from the spec's inventory; please confirm)
+- `ai.temperature` defaults to 0.6 (was 0.8). `ai.qa_cooldown_seconds` (30) and `ai.qa_daily_cap` (25) now apply to mention Q&A, which had no limit
+  before; the counters live in memory, so a restart resets them.
+- `/admin killswitch` replaces both the old master switch command and the Free-Only toggle; the Free-Only mode is now the `ai.gemini_keys` setting.
+
+### Findings and deviations
+- `navi_cooldown_seconds` was editable via `/admin set_cooldown` but nothing ever read it. It now sets the window of the existing /navi
+  "2nd/3rd use within a minute" tiering (default 60 s = identical behaviour).
+- `/gift` had no daily cap; its only inline limit is the per-gift range 1-10000 in the command signature (kept, since it is part of the command surface).
+  `limit.gift_daily` defaults to 0 (no limit) and uses the previously dead `get_gift_daily_total`.
+- `ai.provider` offers `gemini` and `off` only; `bedrock` is added with the provider in Phase 7. `ai.max_output_tokens` is applied to requests but still not
+  sent to Gemini (it would truncate answers); Bedrock will use it. For choice settings the panel uses a select menu instead of a modal.
+- `ai.bedrock_model_id` is marked `restart`; nothing reads it until Phase 7. Q&A cache TTL, safety, context-reply, /teach, bot-commands channel and privacy
+  settings are registered and editable now; their consumers land in Phases 5 and 6.
+- Python 3.11 compatibility: the Dockerfile image is 3.11, so f-strings must not reuse their quote character (ruff `target-version` catches it).
+
+### Not run
+- The panel and commands were exercised with fake interaction objects (every visible setting renders a panel page; every setting round-trips
+  parse -> set -> export -> reset). A manual pass in the test server (two accounts, panel role) still needs a Discord token.

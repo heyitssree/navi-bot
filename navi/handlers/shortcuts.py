@@ -20,7 +20,7 @@ async def handle_shortcut(ctx, message: discord.Message) -> bool:
     """Local media shortcut trigger (;;name). Consumes the message when a shortcut matched."""
     # ---- Local media shortcut trigger (;;name) ----
     shortcut_match = _LOCAL_SHORTCUT_RE.match(message.content.strip())
-    if shortcut_match and ctx.settings.feat("feature_local_media"):
+    if shortcut_match and ctx.settings.get("feature.local_media"):
         shortcut_key = shortcut_match.group(1).lower()
         media_entry = get_local_media(ctx.db, shortcut_key)
         if media_entry:

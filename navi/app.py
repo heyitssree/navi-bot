@@ -14,7 +14,7 @@ from navi.api.partner import run_api_server
 from navi.config import Config
 from navi.context import AppContext
 from navi.db.connection import init_db
-from navi.db.repos.events import log_command_event, log_llm_call, log_session_event
+from navi.db.repos.events import count_llm_calls_today, log_command_event, log_llm_call, log_session_event
 from navi.db.repos.knowledge import seed_local_knowledge
 from navi.handlers import pipeline
 from navi.llm.gemini import GeminiProvider
@@ -28,7 +28,7 @@ from navi.services.predictions import make_cache_lookup
 from navi.services.retention import retention_loop
 from navi.services.slang_scorer import load_slang_data
 from navi.services.templates import load_templates
-from navi.settings.store import FeatureFlags
+from navi.settings.store import Settings
 
 logger = logging.getLogger("navi")
 
@@ -54,7 +54,7 @@ class NaviTree(app_commands.CommandTree):
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
         ctx: AppContext = interaction.client.ctx
-        if not ctx.settings.feat("master_killswitch"):
+        if not ctx.settings.get("system.killswitch"):
             return True  # bot alive - allow all
 
         # Bot is dead - only owner can reach /admin commands
@@ -125,7 +125,7 @@ def build(config: Config) -> tuple[NaviBot, AppContext]:
     intents = discord.Intents.all()
     intents.message_content = True
     bot = NaviBot(command_prefix=commands.when_mentioned, intents=intents, tree_cls=NaviTree, help_command=None)
-    ctx = AppContext(bot=bot, config=config, settings=FeatureFlags())
+    ctx = AppContext(bot=bot, config=config, settings=Settings())
     bot.ctx = ctx
     register_events(bot, ctx)
     return bot, ctx
@@ -148,6 +148,7 @@ def register_events(bot: NaviBot, ctx: AppContext) -> None:
             provider,
             cache_lookup=make_cache_lookup(lambda: ctx.db),
             rpm_limit=10,
+            settings=ctx.settings,
             free_tier_mode=ctx.config.free_tier_mode,
         )
         ctx.llm.on_event = lambda e: log_llm_call(
@@ -156,11 +157,11 @@ def register_events(bot: NaviBot, ctx: AppContext) -> None:
         )
         loop = asyncio.get_running_loop()
         ctx.llm.on_config_error = lambda text: loop.create_task(dm_owner(ctx, text))
+        ctx.llm.seed_daily_calls(count_llm_calls_today(ctx.db))
         await ctx.llm.verify()
 
         # Load feature toggles and testing guild IDs into memory
         ctx.settings.load()
-        ctx.settings.load_testing_guilds()
 
         # Load local slang dictionary and response templates into memory
         load_slang_data()
@@ -174,7 +175,7 @@ def register_events(bot: NaviBot, ctx: AppContext) -> None:
         start_task(ctx, "lucky_draw", lucky_draw_loop(ctx))
         start_task(ctx, "market_hourly", market_hourly_loop(ctx))
         start_task(ctx, "retention", retention_loop(ctx))
-        start_task(ctx, "partner_api", run_api_server(ctx.db, allowed_guild_id=ctx.config.guild_id))
+        start_task(ctx, "partner_api", run_api_server(ctx.db, allowed_guild_id=ctx.config.guild_id, settings=ctx.settings))
 
         await bot.tree.sync()
         logger.info("Slash commands synced. Navi is live. Hey! Listen!")

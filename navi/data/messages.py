@@ -102,3 +102,16 @@ LEVEL_UP_MESSAGES: list[str] = [
     "{user} unlocked Level {level}. Progress is progress.",
     "Level {level} for {user}. Even the server is mildly impressed.",
 ]
+
+
+# Shown when a user asks Navi too often (ai.qa_cooldown_seconds / ai.qa_daily_cap)
+QA_COOLDOWN_MESSAGES: list[str] = [
+    "Easy, {user}. Navi's stars need a breather. Ask again in a bit.",
+    "One question at a time, {user}. The cosmos is still chewing on the last one.",
+    "{user}, even astrologers need a chaya break. Try again shortly.",
+]
+
+QA_DAILY_CAP_MESSAGES: list[str] = [
+    "{user}, you've used up today's questions. The stars reopen after midnight IST.",
+    "That's the daily limit of Navi answers for you, {user}. Come back tomorrow, mone.",
+]

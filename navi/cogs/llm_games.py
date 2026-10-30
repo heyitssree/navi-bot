@@ -18,7 +18,7 @@ from navi.db.repos.content import (
     save_movie_dialogue,
     save_score_comment,
 )
-from navi.db.repos.counters import _GEMINI_GAME_DAILY_LIMIT, get_gemini_game_daily_count, increment_gemini_game_count
+from navi.db.repos.counters import get_gemini_game_daily_count, increment_gemini_game_count
 from navi.db.repos.knowledge import get_random_knowledge_terms
 from navi.db.repos.users import get_user_profile
 from navi.llm.base import LLMRequest
@@ -47,7 +47,7 @@ def _is_malayalam_script(text: str) -> bool:
 # DISABLED: @tree.command(name="navi_challenge", description="Navi Challenge — write a cosmic prediction using 3 random keywords (2 attempts/day)")
 async def navi_challenge_slash(interaction: discord.Interaction) -> None:
     ctx = interaction.client.ctx
-    if not ctx.settings.feat("feature_navi_challenge"):
+    if not ctx.settings.get("feature.navi_challenge"):
         await interaction.response.send_message("Navi Challenge is currently disabled.", ephemeral=True)
         return
 
@@ -64,7 +64,7 @@ async def navi_challenge_slash(interaction: discord.Interaction) -> None:
     if not profile:
         await interaction.response.send_message("Use /navi first to get started.", ephemeral=True)
         return
-    if not testing and count >= _GEMINI_GAME_DAILY_LIMIT:
+    if not testing and count >= ctx.settings.get("limit.llm_game_daily"):
         await interaction.response.send_message(
             "You've used both your **Navi Challenge** attempts for today. Come back after midnight IST!",
             ephemeral=True,
@@ -89,7 +89,7 @@ async def navi_challenge_slash(interaction: discord.Interaction) -> None:
     # send_modal is the only way to present modals — use it as the immediate response
     await interaction.response.send_modal(modal)
     # followup shows the keywords publicly in the channel
-    attempt_line = "*(🧪 Testing mode — unlimited attempts, no rewards)*" if testing else f"*(Attempt {count + 1}/{_GEMINI_GAME_DAILY_LIMIT} today)*"
+    attempt_line = "*(🧪 Testing mode — unlimited attempts, no rewards)*" if testing else f"*(Attempt {count + 1}/{ctx.settings.get('limit.llm_game_daily')} today)*"
     kw_content = (
         f"🔮 **Navi Challenge for {interaction.user.mention}!**\n"
         f"Write a **Navi-style cosmic prediction** (max 2 sentences) using all 3 keywords below.\n"
@@ -114,7 +114,7 @@ async def navi_challenge_slash(interaction: discord.Interaction) -> None:
 # DISABLED: @tree.command(name="type_race", description="Translate a movie dialogue into Malayalam or Trivandrum Manglish — 60 seconds (2 attempts/day)")
 async def type_race_slash(interaction: discord.Interaction) -> None:
     ctx = interaction.client.ctx
-    if not ctx.settings.feat("feature_type_race"):
+    if not ctx.settings.get("feature.type_race"):
         await interaction.response.send_message("Type Race is currently disabled.", ephemeral=True)
         return
 
@@ -130,7 +130,7 @@ async def type_race_slash(interaction: discord.Interaction) -> None:
     if not profile:
         await interaction.response.send_message("Use /navi first to get started.", ephemeral=True)
         return
-    if not testing and count >= _GEMINI_GAME_DAILY_LIMIT:
+    if not testing and count >= ctx.settings.get("limit.llm_game_daily"):
         await interaction.response.send_message(
             "You've used both your **Type Race** attempts for today. Come back after midnight IST!",
             ephemeral=True,
@@ -213,7 +213,7 @@ async def type_race_slash(interaction: discord.Interaction) -> None:
             None, lambda: increment_gemini_game_count(ctx.db, interaction.user.id, "type_race")
         )
 
-    attempt_line = "🧪 *Testing mode — unlimited attempts, no rewards*" if testing else f"*Attempt {count + 1}/{_GEMINI_GAME_DAILY_LIMIT} today*"
+    attempt_line = "🧪 *Testing mode — unlimited attempts, no rewards*" if testing else f"*Attempt {count + 1}/{ctx.settings.get('limit.llm_game_daily')} today*"
     view = TypeRaceStartView(sentence=sentence, user_id=interaction.user.id)
     msg = await interaction.followup.send(
         f"⌨️ **Type Race for {interaction.user.mention}!**\n\n"

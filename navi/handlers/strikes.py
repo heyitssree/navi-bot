@@ -26,7 +26,10 @@ async def handle_strike(ctx, member: discord.Member, channel: discord.abc.Messag
         reset_user_strikes(ctx.db, member.id)
         mod_ch = None
         if isinstance(channel, discord.TextChannel):
-            mod_ch = discord.utils.get(channel.guild.text_channels, name=ctx.config.mod_channel_name)
+            configured = ctx.settings.get("channel.mod_alerts")
+            mod_ch = channel.guild.get_channel(configured) if configured else None
+            if mod_ch is None:   # fall back to the channel named by MOD_CHANNEL_NAME
+                mod_ch = discord.utils.get(channel.guild.text_channels, name=ctx.config.mod_channel_name)
         if mod_ch:
             await mod_ch.send(
                 f"🚨 **Mod Alert:** {member.mention} has hit **3 strikes**. "

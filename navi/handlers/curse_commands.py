@@ -18,9 +18,8 @@ from navi.data.messages import (
 from navi.db.repos.counters import decrement_extra_actions, increment_daily_action_count
 from navi.db.repos.events import log_command_event
 from navi.db.repos.perks import has_active_perk
-from navi.db.repos.settings import get_config_float
 from navi.services.curse_game import backfire_curse, land_bless, land_curse, self_curse, timeout_penalty
-from navi.services.quota import DAILY_QUOTA, UNIVERSAL_BLESSING_MESSAGES, check_cosmic_quota
+from navi.services.quota import UNIVERSAL_BLESSING_MESSAGES, check_cosmic_quota
 
 logger = logging.getLogger("navi.handlers.curse_commands")
 
@@ -28,7 +27,7 @@ logger = logging.getLogger("navi.handlers.curse_commands")
 async def handle_navi_command(ctx, message: discord.Message) -> bool:
     """Legacy prefix "navi" curse command (AI-free). Exact word "navi" only."""
     # ---- Legacy prefix "navi" command — only triggers on the exact word "navi" ----
-    if ctx.settings.feat("feature_curses") and re.match(r'^navi\b', message.content, re.IGNORECASE):
+    if ctx.settings.get("feature.curses") and re.match(r'^navi\b', message.content, re.IGNORECASE):
         invoker = message.author
         try:
             log_command_event(
@@ -74,11 +73,11 @@ async def handle_navi_command(ctx, message: discord.Message) -> bool:
             if target_protected or target_shielded:
                 reversal_chance = 1.0  # Protected/shielded targets always bounce the curse back
             else:
-                _tier_key = {"Mild": "backfire_chance_mild", "Moderate": "backfire_chance_moderate", "Severe": "backfire_chance_severe"}
-                reversal_chance = get_config_float(ctx.db, _tier_key[curse_data["tier"]], curse_data["backfire_chance"])
+                _tier_key = {"Mild": "chance.backfire_mild", "Moderate": "chance.backfire_moderate", "Severe": "chance.backfire_severe"}
+                reversal_chance = ctx.settings.get(_tier_key[curse_data["tier"]])
 
             daily_count = increment_daily_action_count(ctx.db, invoker.id)
-            if daily_count > DAILY_QUOTA:
+            if daily_count > ctx.settings.get("limit.daily_cosmic_actions"):
                 decrement_extra_actions(ctx.db, invoker.id)
 
             first_reversed = random.random() < reversal_chance
@@ -161,10 +160,10 @@ async def handle_navi_command(ctx, message: discord.Message) -> bool:
                 if target_protected or target_shielded:
                     reversal_chance = 1.0
                 else:
-                    _tier_key = {"Mild": "backfire_chance_mild", "Moderate": "backfire_chance_moderate", "Severe": "backfire_chance_severe"}
-                    reversal_chance = get_config_float(ctx.db, _tier_key[curse_data["tier"]], curse_data["backfire_chance"])
+                    _tier_key = {"Mild": "chance.backfire_mild", "Moderate": "chance.backfire_moderate", "Severe": "chance.backfire_severe"}
+                    reversal_chance = ctx.settings.get(_tier_key[curse_data["tier"]])
                 daily_count = increment_daily_action_count(ctx.db, invoker.id)
-                if daily_count > DAILY_QUOTA:
+                if daily_count > ctx.settings.get("limit.daily_cosmic_actions"):
                     decrement_extra_actions(ctx.db, invoker.id)
                 dmg = curse_data["target_damage"]
                 if random.random() < reversal_chance:
@@ -188,7 +187,7 @@ async def handle_navi_command(ctx, message: discord.Message) -> bool:
         curse_data = get_random_curse()
         self_curse(ctx.db, target.id, curse_data["target_damage"], curse_data["word"])
         daily_count = increment_daily_action_count(ctx.db, invoker.id)
-        if daily_count > DAILY_QUOTA:
+        if daily_count > ctx.settings.get("limit.daily_cosmic_actions"):
             decrement_extra_actions(ctx.db, invoker.id)
         await message.reply(f"{curse_data['word']} {target.display_name}")
         logger.info("%s got self-cursed via navi prefix", target.display_name)
@@ -200,7 +199,7 @@ async def handle_navi_command(ctx, message: discord.Message) -> bool:
 async def handle_chunk_command(ctx, message: discord.Message) -> bool:
     """"chunk" bless command (quota-tracked, AI-free)."""
     # ---- "chunk @user" — bless command (quota-tracked, no target mention) ----
-    if ctx.settings.feat("feature_curses") and re.match(r'^chunk\b', message.content, re.IGNORECASE):
+    if ctx.settings.get("feature.curses") and re.match(r'^chunk\b', message.content, re.IGNORECASE):
         invoker = message.author
         try:
             log_command_event(
@@ -227,11 +226,11 @@ async def handle_chunk_command(ctx, message: discord.Message) -> bool:
                 return
 
             new_daily = increment_daily_action_count(ctx.db, invoker.id)
-            if new_daily > DAILY_QUOTA:
+            if new_daily > ctx.settings.get("limit.daily_cosmic_actions"):
                 decrement_extra_actions(ctx.db, invoker.id)
 
             # Configurable universal blessing chance (default 5%)
-            if random.random() < get_config_float(ctx.db, "universal_blessing_chance", 0.05):
+            if random.random() < ctx.settings.get("chance.universal_blessing"):
                 _UNIVERSAL_BLESSING_BONUS = 100
                 land_bless(ctx.db, invoker.id, target.id, _UNIVERSAL_BLESSING_BONUS, _UNIVERSAL_BLESSING_BONUS,
                            "universal_blessing",

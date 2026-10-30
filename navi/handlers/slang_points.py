@@ -7,7 +7,6 @@ from datetime import datetime, timedelta, timezone
 import discord
 
 from navi.data.curse_data import contains_boli_trigger
-from navi.db.repos.settings import get_config_int
 from navi.services.levels import maybe_announce_levelup
 from navi.services.points import award
 from navi.services.slang_scorer import get_slang_matches, score_message
@@ -15,19 +14,14 @@ from navi.services.slang_scorer import get_slang_matches, score_message
 logger = logging.getLogger("navi.handlers.slang_points")
 
 
-_SLANG_SPAM_WINDOW_SECONDS = 60   # window for consecutive short-message counting
 
 
-_SLANG_SPAM_THRESHOLD = 2          # trigger cooldown after this many (3rd message = index 2)
 
 
-_SLANG_COOLDOWN_MINUTES = 5        # how long points are suppressed after trigger
 
 
-_SLANG_SPAM_MAX_WORDS = 2          # only track messages with ≤ this many words
 
 
-_SLANG_SPAM_MAX_CHARS = 20         # and ≤ this many chars
 
 
 def _check_slang_spam(ctx, user_id: int, content: str) -> bool:
@@ -50,14 +44,14 @@ def _check_slang_spam(ctx, user_id: int, content: str) -> bool:
 
     # Count consecutive short messages within the window
     count, last_time = ctx.state.slang_spam_tracker.get(user_id, (0, now))
-    within_window = (now - last_time).total_seconds() <= _SLANG_SPAM_WINDOW_SECONDS
+    within_window = (now - last_time).total_seconds() <= ctx.settings.get("slang.spam_window_seconds")
 
     new_count = count + 1 if within_window else 1
     ctx.state.slang_spam_tracker[user_id] = (new_count, now)
 
-    if new_count >= _SLANG_SPAM_THRESHOLD + 1:
+    if new_count >= ctx.settings.get("slang.spam_threshold") + 1:
         # Enter 5-minute cooldown
-        ctx.state.slang_cooldown[user_id] = now + timedelta(minutes=_SLANG_COOLDOWN_MINUTES)
+        ctx.state.slang_cooldown[user_id] = now + timedelta(minutes=ctx.settings.get("slang.cooldown_minutes"))
         logger.debug(
             "Slang spam cooldown set for user_id=%d — '%s' was the %d-th short msg in window.",
             user_id, content.strip()[:20], new_count,
@@ -75,14 +69,14 @@ async def handle_slang_points(ctx, message: discord.Message) -> bool:
     _stripped = message.content.strip()
     _words = _stripped.split()
     _is_slang_spam = (
-        len(_words) <= _SLANG_SPAM_MAX_WORDS
-        and len(_stripped) <= _SLANG_SPAM_MAX_CHARS
+        len(_words) <= ctx.settings.get("slang.max_words")
+        and len(_stripped) <= ctx.settings.get("slang.max_chars")
         and bool(_stripped)
         and _check_slang_spam(ctx, message.author.id, _stripped)
     )
 
     # ---- Boli Points: local slang triggers ----
-    triggered_words = contains_boli_trigger(message.content) if get_config_int(ctx.db, "feature_boli_points", 1) else []
+    triggered_words = contains_boli_trigger(message.content) if ctx.settings.get("feature.boli_points") else []
     if triggered_words and not _is_slang_spam:
         points = len(triggered_words) * 5
         award(ctx.db, message.author.id, points, points, reason="slang", detail=",".join(triggered_words))
@@ -95,7 +89,7 @@ async def handle_slang_points(ctx, message: discord.Message) -> bool:
         )
 
     # ---- Slang Dictionary Scoring (TVM +pts / Kochi -pts, tiered) ----
-    if get_config_int(ctx.db, "feature_boli_points", 1) and not _is_slang_spam:
+    if ctx.settings.get("feature.boli_points") and not _is_slang_spam:
         slang_delta = score_message(message.content)
         if slang_delta != 0:
             award(ctx.db, message.author.id, slang_delta, max(0, slang_delta), reason="slang", detail="dictionary")

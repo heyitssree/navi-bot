@@ -13,7 +13,7 @@ async def test_on_ready_initialises_everything_and_shutdown_is_clean(tmp_path, m
     monkeypatch.setattr(app, "do_backup", lambda: "backup")
     ran = []
 
-    async def fake_api(db, allowed_guild_id=None):
+    async def fake_api(db, allowed_guild_id=None, settings=None):
         ran.append("api")
 
     monkeypatch.setattr(app, "run_api_server", fake_api)
@@ -26,7 +26,7 @@ async def test_on_ready_initialises_everything_and_shutdown_is_clean(tmp_path, m
 
     assert ctx.db is not None and ctx.llm is not None
     assert ctx.llm.provider.key_names == ["free"] and ctx.llm.free_tier_mode is True
-    assert ctx.settings.feat("feature_curses") is True
+    assert ctx.settings.get("feature.curses") is True
     assert set(ctx.tasks) == {"backup", "last_seen_flush", "lucky_draw", "market_hourly", "partner_api", "retention"}
     bot.tree.sync.assert_awaited_once()
 
@@ -46,7 +46,7 @@ async def test_config_error_dm_goes_to_owner(tmp_path, monkeypatch):
     monkeypatch.setattr("navi.db.connection.DB_PATH", tmp_path / "navi.db")
     monkeypatch.setattr(app, "do_backup", lambda: "backup")
 
-    async def fake_api(db, allowed_guild_id=None):
+    async def fake_api(db, allowed_guild_id=None, settings=None):
         return None
 
     monkeypatch.setattr(app, "run_api_server", fake_api)

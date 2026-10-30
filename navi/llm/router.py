@@ -16,15 +16,21 @@ from __future__ import annotations
 import logging
 import threading
 import time
-from dataclasses import dataclass
-from datetime import datetime, timedelta
+import random
+from dataclasses import dataclass, replace
+from datetime import datetime, timedelta, timezone
 from typing import Callable
 
+from navi.data.messages import QA_COOLDOWN_MESSAGES, QA_DAILY_CAP_MESSAGES
 from navi.llm import safety
 from navi.llm.base import LLMError, LLMProvider, LLMRequest, LLMResponse
 from navi.llm.gemini import DEFAULT_RETRY_AFTER
 
 logger = logging.getLogger("navi.llm.router")
+
+_IST = timezone(timedelta(hours=5, minutes=30))
+USER_LIMITED = {"qa", "context_reply"}       # purposes subject to the per-user cooldown and daily cap
+LONG_PURPOSES = {"summary", "mod"}           # get 4x the output-token budget
 
 PRIORITY = {"qa": 0, "context_reply": 0, "summary": 1, "mod": 1,
             "prediction": 2, "vibe": 3, "template_batch": 3}
@@ -126,6 +132,7 @@ class LLMRouter:
         rpm_limit: int = 10,
         free_tier_mode: bool = True,
         yield_below_fraction: float = 0.0,
+        settings=None,
         clock: Callable[[], float] = time.monotonic,
     ) -> None:
         self.provider = provider
@@ -134,6 +141,12 @@ class LLMRouter:
         self.free_tier_mode = free_tier_mode
         self.yield_below_fraction = yield_below_fraction  # 0 = never yield (Phase 2 keeps today's behaviour)
         self._clock = clock
+        self._settings = settings   # navi.settings.store.Settings; None = use the constructor values only
+
+        self.daily_calls = 0                       # provider calls today (IST); seed_daily_calls() restores it at startup
+        self._daily_date = self._today()
+        self._user_last: dict[int, float] = {}     # user_id -> clock() of their last limited call
+        self._user_day: dict[int, tuple[str, int]] = {}   # user_id -> (IST date, calls)
 
         self.enabled = True
         self.free_only = False
@@ -152,7 +165,7 @@ class LLMRouter:
         self.failed_calls = 0
 
     # ------------------------------------------------------------------
-    # Introspection (used by /health and the owner commands)
+    # Introspection (used by /admin status)
     # ------------------------------------------------------------------
 
     @property
@@ -171,6 +184,64 @@ class LLMRouter:
     def open_until(self) -> datetime | None:
         left = self.breaker.seconds_left
         return datetime.now() + timedelta(seconds=left) if left > 0 else None
+
+    # ------------------------------------------------------------------
+    # Live settings (read at use time, so /admin changes apply immediately)
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _today() -> str:
+        return datetime.now(_IST).strftime("%Y-%m-%d")
+
+    def _setting(self, key: str, fallback):
+        return self._settings.get(key) if self._settings is not None else fallback
+
+    @property
+    def is_enabled(self) -> bool:
+        return self.enabled and self._setting("ai.provider", "gemini") != "off"
+
+    @property
+    def is_free_only(self) -> bool:
+        return self.free_only or self._setting("ai.gemini_keys", "free_then_paid") == "free_only"
+
+    @property
+    def rpm(self) -> int:
+        return int(self._setting("ai.rpm_budget", self.rpm_limit))
+
+    def seed_daily_calls(self, count: int) -> None:
+        self._daily_date, self.daily_calls = self._today(), count
+
+    def _roll_day(self) -> None:
+        today = self._today()
+        if today != self._daily_date:
+            self._daily_date, self.daily_calls = today, 0
+
+    def _tune(self, req: LLMRequest) -> LLMRequest:
+        """Apply ai.temperature / ai.max_output_tokens / ai.model from the settings."""
+        if self._settings is None:
+            return req
+        override = self._settings.get("ai.model")
+        if override and override != self.provider.model:
+            self.provider.model = override
+        tokens = int(self._settings.get("ai.max_output_tokens")) * (4 if req.purpose in LONG_PURPOSES else 1)
+        return replace(req, temperature=float(self._settings.get("ai.temperature")), max_tokens=tokens)
+
+    def _user_limited(self, req: LLMRequest, user_id: int | None) -> str | None:
+        """Return 'cooldown' or 'daily_cap' when this user may not ask again yet (qa / context replies only)."""
+        if self._settings is None or user_id is None or req.purpose not in USER_LIMITED:
+            return None
+        now, today = self._clock(), self._today()
+        cooldown = self._settings.get("ai.qa_cooldown_seconds")
+        if cooldown and now - self._user_last.get(user_id, -1e12) < cooldown:
+            return "cooldown"
+        day, used = self._user_day.get(user_id, (today, 0))
+        if day != today:
+            used = 0
+        if used >= self._settings.get("ai.qa_daily_cap"):
+            return "daily_cap"
+        self._user_last[user_id] = now
+        self._user_day[user_id] = (today, used + 1)
+        return None
 
     def status_dict(self) -> dict:
         free = self.calls.get("free", 0)
@@ -195,7 +266,10 @@ class LLMRouter:
             "free_pct": round(free / total * 100) if total else 0,
             "paid_pct": round(paid / total * 100) if total else 0,
             "rpm_used": self._request_count,
-            "rpm_limit": self.rpm_limit,
+            "rpm_limit": self.rpm,
+            "daily_calls": self.daily_calls,
+            "daily_call_cap": self._setting("ai.daily_call_cap", None),
+            "provider_setting": self._setting("ai.provider", "gemini"),
             "window_resets_in_seconds": max(0, 60 - int(time.monotonic() - self._window_start)),
             "free_tier_mode": self.free_tier_mode,
         }
@@ -243,14 +317,26 @@ class LLMRouter:
             self._emit(req, outcome=outcome)
             return RouterResult(cached or fallback, True, outcome)
 
-        if not self.enabled:
+        if not self.is_enabled:
             return await degraded("off")
 
+        limited = self._user_limited(req, user_id)
+        if limited:
+            self._emit(req, outcome="user_" + limited)
+            pool = QA_COOLDOWN_MESSAGES if limited == "cooldown" else QA_DAILY_CAP_MESSAGES
+            return RouterResult(random.choice(pool).format(user=name or "friend"), True, "user_" + limited)
+
+        req = self._tune(req)
         self._refresh_window()
-        if self._request_count >= self.rpm_limit:
-            logger.warning("Rate limit hit (%d/%d RPM). Serving fallback.", self._request_count, self.rpm_limit)
+        self._roll_day()
+        cap = self._setting("ai.daily_call_cap", None)
+        if cap is not None and self.daily_calls >= cap:
+            logger.warning("Daily LLM call cap reached (%d).", cap)
+            return await degraded("cap")
+        if self._request_count >= self.rpm:
+            logger.warning("Rate limit hit (%d/%d RPM). Serving fallback.", self._request_count, self.rpm)
             return await degraded("budget")
-        left = 1 - self._request_count / self.rpm_limit
+        left = 1 - self._request_count / self.rpm
         if PRIORITY.get(req.purpose, 1) >= 2 and left < self.yield_below_fraction:
             return await degraded("budget")
 
@@ -259,8 +345,9 @@ class LLMRouter:
             return await degraded("breaker")
 
         self._request_count += 1
+        self.daily_calls += 1
         keys = [k for k in self.provider.key_names
-                if not (self.free_only and k in getattr(self.provider, "paid_keys", ()))]
+                if not (self.is_free_only and k in getattr(self.provider, "paid_keys", ()))]
 
         server_failure = False
         tried = False
