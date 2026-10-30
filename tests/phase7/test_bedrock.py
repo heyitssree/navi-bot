@@ -104,6 +104,41 @@ def test_verify_model_checks_the_inference_profile():
         assert provider.verify_model_sync()[1].kind == "server"          # missing GetInferenceProfile permission: warn, don't alarm
 
 
+GEMMA = "google.gemma-3-12b-it"
+
+
+async def test_a_model_without_system_prompt_support_gets_the_instructions_in_the_user_message():
+    client = runtime_client()
+    with Stubber(client) as stub:
+        provider = BedrockProvider(GEMMA, "ap-south-1", client=client)
+        stub.add_client_error("converse", service_error_code="ValidationException", http_status_code=400,
+                              service_message="This model doesn't support system messages.")
+        stub.add_response("converse", converse_ok("Hello"), expected_params={
+            "modelId": GEMMA, "messages": [{"role": "user", "content": [{"text": "SYS\n\nhello"}]}],
+            "inferenceConfig": {"maxTokens": 77, "temperature": 0.3}})
+        assert (await provider.generate(REQ)).text == "Hello"
+        stub.add_response("converse", converse_ok("Again"), expected_params={        # remembered: no second failed attempt
+            "modelId": GEMMA, "messages": [{"role": "user", "content": [{"text": "SYS\n\nhello"}]}],
+            "inferenceConfig": {"maxTokens": 77, "temperature": 0.3}})
+        assert (await provider.generate(REQ)).text == "Again"
+        stub.assert_no_pending_responses()
+
+
+async def test_other_validation_errors_are_not_retried_without_the_system_prompt():
+    client = runtime_client()
+    with Stubber(client) as stub:
+        provider = BedrockProvider(GEMMA, "ap-south-1", client=client)
+        stub.add_client_error("converse", service_error_code="ValidationException", http_status_code=400, service_message="bad model id")
+        with pytest.raises(LLMError) as e:
+            await provider.generate(REQ)
+        assert e.value.kind == "config" and provider._system_supported is True
+
+
+def test_plain_on_demand_models_skip_the_inference_profile_check():
+    provider = BedrockProvider(GEMMA, "ap-south-1", client=runtime_client())        # no control client: must not be touched
+    assert provider.verify_model_sync() == (GEMMA, None)
+
+
 # ------------------------------------------------------------------------------ router behaviour is unchanged
 
 async def test_router_treats_bedrock_errors_like_gemini_errors():

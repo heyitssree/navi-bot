@@ -63,7 +63,15 @@ Open the port in your firewall only if a caller on another machine needs it. If 
 | Slash commands missing | Global sync can take up to an hour; re-invite with `applications.commands` |
 
 
-## Amazon Bedrock (Claude Haiku 5.5)
+## Amazon Bedrock
+
+> **Current choice: Gemma 3 12B, `google.gemma-3-12b-it`** (an on-demand model, no inference profile, available in ap-south-1). Set `BEDROCK_MODEL_ID=google.gemma-3-12b-it`
+> or `/admin set ai.bedrock_model_id google.gemma-3-12b-it`. The role needs only `bedrock:InvokeModel` on
+> `arn:aws:bedrock:ap-south-1::foundation-model/google.gemma-3-12b-it` (the CDK stack adds it). If Gemma rejects Converse system prompts the provider folds the
+> instructions into the user message automatically. Check the price on the Bedrock pricing page and set `ai.price_input_per_mtok` / `ai.price_output_per_mtok`, then
+> run `tools.eval_llm --provider bedrock` before switching. The Claude Haiku 5.5 steps below still apply if you go back to a Claude model.
+
+### Claude Haiku 5.5 (optional)
 
 Navi can answer through Bedrock instead of Gemini. Gemini stays the default until you switch (`/admin set ai.provider bedrock`).
 

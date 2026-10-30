@@ -50,20 +50,25 @@ class ComputeStack(Stack):
             sid="DecryptParametersViaSsm", actions=["kms:Decrypt"], resources=["*"],
             conditions={"StringEquals": {"kms:ViaService": f"ssm.{self.region}.amazonaws.com"}}))
 
-        # Bedrock: the global cross-Region profile needs three statements (profile in this region, the in-region
-        # foundation model, and the global foundation-model resource), each tied to the profile ARN.
-        profile_arn = self.format_arn(service="bedrock", resource="inference-profile", resource_name=cfg.bedrock_profile_id)
+        # Bedrock. A plain on-demand model (e.g. Gemma) needs one statement. A global cross-Region profile needs three
+        # (profile in this region, the in-region foundation model, the global foundation-model resource), tied to the profile ARN.
         invoke = ["bedrock:InvokeModel", "bedrock:InvokeModelWithResponseStream"]
-        role.add_to_policy(iam.PolicyStatement(sid="BedrockProfileInRegion", actions=invoke, resources=[profile_arn]))
-        role.add_to_policy(iam.PolicyStatement(
-            sid="BedrockModelInRegion", actions=invoke,
-            resources=[f"arn:aws:bedrock:{self.region}::foundation-model/{cfg.bedrock_model_arn_pattern}"],
-            conditions={"StringEquals": {"bedrock:InferenceProfileArn": profile_arn}}))
-        role.add_to_policy(iam.PolicyStatement(
-            sid="BedrockModelGlobal", actions=invoke,
-            resources=[f"arn:aws:bedrock:::foundation-model/{cfg.bedrock_model_arn_pattern}"],
-            conditions={"StringEquals": {"aws:RequestedRegion": "unspecified", "bedrock:InferenceProfileArn": profile_arn}}))
-        role.add_to_policy(iam.PolicyStatement(sid="BedrockStartupCheck", actions=["bedrock:GetInferenceProfile"], resources=[profile_arn]))
+        if cfg.bedrock_uses_profile:
+            profile_arn = self.format_arn(service="bedrock", resource="inference-profile", resource_name=cfg.bedrock_profile_id)
+            role.add_to_policy(iam.PolicyStatement(sid="BedrockProfileInRegion", actions=invoke, resources=[profile_arn]))
+            role.add_to_policy(iam.PolicyStatement(
+                sid="BedrockModelInRegion", actions=invoke,
+                resources=[f"arn:aws:bedrock:{self.region}::foundation-model/{cfg.bedrock_model_arn_pattern}"],
+                conditions={"StringEquals": {"bedrock:InferenceProfileArn": profile_arn}}))
+            role.add_to_policy(iam.PolicyStatement(
+                sid="BedrockModelGlobal", actions=invoke,
+                resources=[f"arn:aws:bedrock:::foundation-model/{cfg.bedrock_model_arn_pattern}"],
+                conditions={"StringEquals": {"aws:RequestedRegion": "unspecified", "bedrock:InferenceProfileArn": profile_arn}}))
+            role.add_to_policy(iam.PolicyStatement(sid="BedrockStartupCheck", actions=["bedrock:GetInferenceProfile"], resources=[profile_arn]))
+        else:
+            role.add_to_policy(iam.PolicyStatement(
+                sid="BedrockModelOnDemand", actions=invoke,
+                resources=[f"arn:aws:bedrock:{self.region}::foundation-model/{cfg.bedrock_model_arn_pattern}"]))
         role.add_to_policy(iam.PolicyStatement(
             sid="Heartbeat", actions=["cloudwatch:PutMetricData"], resources=["*"],
             conditions={"StringEquals": {"cloudwatch:namespace": "Navi"}}))

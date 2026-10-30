@@ -384,3 +384,11 @@ One registry, one control surface. 692 tests pass (stable over repeated runs).
 - The account's SCP denies most services this phase needs, and Bedrock is still on the new-account verification hold. Resolve both before the gate.
 - Docker image build and the Litestream config against the real binary are not yet verified.
 - Phase 8b (partner ingest) is skipped; the partner bot is not in use.
+
+### Phase 8 follow-up: Gemma instead of Claude
+- Bedrock model is now `google.gemma-3-12b-it` (on-demand). `cdk.json` points at it; the Compute stack adds one `BedrockModelOnDemand` statement for a plain model id and
+  keeps the three-statement profile policy for geography-prefixed ids. `BedrockProvider` folds the system prompt into the user message if a model rejects it, and skips the
+  inference-profile check for plain model ids. Tests: 885 app and 47 infra pass.
+- Not verified live: one 20-token Gemma 3 12B call worked on a new account, the next ones hit that account's verification hold, so the system-prompt behaviour and output quality
+  are untested. Prices in settings are still the Haiku placeholders: set Gemma's real prices before relying on `/admin status` cost.
+- The second account (<account-id>) is in an AWS-managed organization whose SCP denies CloudFormation and EC2, like the first. Deployment is blocked until an account outside such an organization is used.

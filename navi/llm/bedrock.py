@@ -1,4 +1,4 @@
-# navi/llm/bedrock.py - Amazon Bedrock provider (Converse API). Used for Claude Haiku 5.5 behind a global
+# navi/llm/bedrock.py - Amazon Bedrock provider (Converse API). Works with an on-demand model (e.g. google.gemma-3-12b-it) or a
 # cross-Region inference profile; the model id comes from ai.bedrock_model_id / BEDROCK_MODEL_ID, never hardcoded.
 
 from __future__ import annotations
@@ -15,6 +15,7 @@ THROTTLE = {"ThrottlingException", "TooManyRequestsException", "ServiceQuotaExce
 CONFIG = {"AccessDeniedException", "ValidationException", "ResourceNotFoundException", "UnrecognizedClientException",
           "ExpiredTokenException", "InvalidSignatureException", "UnauthorizedException"}
 DEFAULT_REGION = "ap-south-1"
+PROFILE_PREFIXES = {"global", "apac", "in", "us", "eu", "jp", "au", "ca", "us-gov"}
 THROTTLE_RETRY_AFTER = 10.0
 
 
@@ -37,8 +38,9 @@ class BedrockProvider:
     def __init__(self, model_id: str, region: str = DEFAULT_REGION, *, client=None, control_client=None) -> None:
         if not model_id:
             raise ValueError("Bedrock needs a model id: set ai.bedrock_model_id or BEDROCK_MODEL_ID "
-                             "(a global inference profile id; list them with `aws bedrock list-inference-profiles`).")
-        self.model = model_id                  # the global cross-Region inference profile id
+                             "(a model id such as google.gemma-3-12b-it, or an inference profile id from `aws bedrock list-inference-profiles`).")
+        self.model = model_id                  # an on-demand model id or a cross-Region inference profile id
+        self._system_supported = True          # flips to False if the model rejects Converse system prompts
         self.region = region
         if client is None:
             import boto3
@@ -51,16 +53,25 @@ class BedrockProvider:
         self._control = control_client
         logger.info("BedrockProvider initialised. Model: %s, region: %s", model_id, region)
 
+    def _converse(self, req: LLMRequest) -> dict:
+        kwargs = dict(modelId=self.model, inferenceConfig={"maxTokens": req.max_tokens, "temperature": req.temperature})
+        if self._system_supported:
+            try:
+                return self._client.converse(system=[{"text": req.system}],
+                                             messages=[{"role": "user", "content": [{"text": req.prompt}]}], **kwargs)
+            except Exception as exc:
+                code = getattr(exc, "response", {}).get("Error", {}).get("Code", "")
+                if code != "ValidationException" or "system" not in str(exc).lower():
+                    raise
+                self._system_supported = False       # some models (e.g. Gemma) take no system prompt: fold it into the message
+                logger.warning("Model %s rejects system prompts; sending the instructions inside the user message.", self.model)
+        text = f"{req.system}\n\n{req.prompt}" if req.system else req.prompt
+        return self._client.converse(messages=[{"role": "user", "content": [{"text": text}]}], **kwargs)
+
     async def generate(self, req: LLMRequest, key: str | None = None) -> LLMResponse:
         t0 = time.monotonic()
         try:
-            resp = await asyncio.to_thread(
-                self._client.converse,
-                modelId=self.model,
-                system=[{"text": req.system}],
-                messages=[{"role": "user", "content": [{"text": req.prompt}]}],
-                inferenceConfig={"maxTokens": req.max_tokens, "temperature": req.temperature},
-            )
+            resp = await asyncio.to_thread(self._converse, req)
         except Exception as exc:
             raise classify_client_error(exc) from exc
         blocks = resp["output"]["message"]["content"]
@@ -77,8 +88,12 @@ class BedrockProvider:
     def verify_model_sync(self) -> tuple[str, LLMError | None]:
         """Startup check: the inference profile exists and is ACTIVE (needs bedrock:GetInferenceProfile).
 
-        A missing permission is only a warning: invoking the model is what really matters.
+        A missing permission is only a warning: invoking the model is what really matters. A plain on-demand model id
+        (no geography prefix) has no profile to check.
         """
+        if self.model.split(".", 1)[0] not in PROFILE_PREFIXES:
+            logger.info("Active Bedrock model: %s (on-demand)", self.model)
+            return self.model, None
         try:
             if self._control is None:
                 import boto3

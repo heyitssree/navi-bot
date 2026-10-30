@@ -136,3 +136,16 @@ def test_image_asset_is_arm64_and_excludes_private_files(stacks):
     manifest = json.loads((Path(directory) / "C.assets.json").read_text())
     images = manifest["dockerImages"].values()
     assert images and all(i["source"]["platform"] == "linux/arm64" for i in images)
+
+
+def test_on_demand_model_gets_a_single_scoped_statement():
+    from aws_cdk import assertions
+
+    from tests.conftest import build, make_cfg
+
+    cfg = make_cfg(bedrock_profile_id="google.gemma-3-12b-it", bedrock_model_arn_pattern="google.gemma-3-12b-it")
+    assert cfg.bedrock_uses_profile is False and make_cfg().bedrock_uses_profile is True
+    stmts = _by_sid(assertions.Template.from_stack(build(cfg)["compute"]))
+    assert stmts["BedrockModelOnDemand"]["Resource"] == "arn:aws:bedrock:ap-south-1::foundation-model/google.gemma-3-12b-it"
+    assert sorted(stmts["BedrockModelOnDemand"]["Action"]) == ["bedrock:InvokeModel", "bedrock:InvokeModelWithResponseStream"]
+    assert not {"BedrockProfileInRegion", "BedrockModelGlobal", "BedrockStartupCheck"} & set(stmts)

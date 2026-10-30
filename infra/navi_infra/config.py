@@ -19,14 +19,19 @@ class NaviConfig:
     root_volume_gib: int
     alert_email: str
     monthly_budget_usd: int
-    bedrock_profile_id: str          # global inference profile id, e.g. global.anthropic.claude-haiku-5-5
-    bedrock_model_arn_pattern: str   # foundation model id the profile routes to, e.g. anthropic.claude-haiku-5-5
+    bedrock_profile_id: str          # the id the app calls: an inference profile (global.anthropic.claude-haiku-5-5) or a plain model id (google.gemma-3-12b-it)
+    bedrock_model_arn_pattern: str   # foundation model id (the profile routes to it, or the model itself), e.g. google.gemma-3-12b-it
     enable_partner_ingest: bool
     availability_zone: str = ""        # explicit, so synth needs no AWS lookup (default <region>a)
 
     def name(self, suffix: str) -> str:
         """Consistent physical-name prefix, e.g. navi-prod-bot."""
         return f"navi-{self.env_name}-{suffix}"
+
+    @property
+    def bedrock_uses_profile(self) -> bool:
+        """Cross-Region profile ids start with a geography (global., apac., in., us., eu. ...); plain on-demand model ids do not."""
+        return self.bedrock_profile_id.split(".", 1)[0] in {"global", "apac", "in", "us", "eu", "jp", "au", "ca", "us-gov"}
 
     @property
     def ssm_prefix(self) -> str:
