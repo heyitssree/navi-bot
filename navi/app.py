@@ -13,7 +13,11 @@ from discord.ext import commands
 from navi.api.partner import run_api_server
 from navi.config import Config
 from navi.context import AppContext
+from pathlib import Path
+
+from navi.db import connection as db_connection
 from navi.db.connection import init_db
+from navi.db.repos.privacy import connect_privacy
 from navi.db.repos.events import count_llm_calls_today, log_command_event, log_llm_call, log_session_event
 from navi.db.repos.knowledge import seed_local_knowledge
 from navi.handlers import pipeline
@@ -32,6 +36,7 @@ from navi.services.template_pool import seed_templates, store_rejected, template
 from navi.services.retention import retention_loop
 from navi.services.slang_scorer import load_slang_data
 from navi.services.templates import load_templates
+from navi.services.privacy import OPTED_OUT_MESSAGE, Privacy
 from navi.settings.store import Settings
 
 logger = logging.getLogger("navi")
@@ -47,6 +52,8 @@ COGS = [
     "navi.cogs.community",
     "navi.cogs.media",
     "navi.cogs.help",
+    "navi.cogs.privacy",
+    "navi.cogs.teach",
     "navi.cogs.admin",
 ]
 
@@ -58,6 +65,15 @@ class NaviTree(app_commands.CommandTree):
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
         ctx: AppContext = interaction.client.ctx
+
+        # Opted-out users may only use /privacy (the owner keeps /admin so they can never be locked out)
+        if ctx.privacy.is_opted_out(interaction.user.id):
+            name = interaction.command.qualified_name if interaction.command else ""
+            is_admin = name.startswith("admin") and interaction.user.id == ctx.config.owner_id
+            if not name.startswith("privacy") and not is_admin:
+                await interaction.response.send_message(OPTED_OUT_MESSAGE, ephemeral=True)
+                return False
+
         if not ctx.settings.get("system.killswitch"):
             return True  # bot alive - allow all
 
@@ -130,7 +146,7 @@ def build(config: Config) -> tuple[NaviBot, AppContext]:
     intents.message_content = True
     bot = NaviBot(command_prefix=commands.when_mentioned, intents=intents, tree_cls=NaviTree, help_command=None,
                   allowed_mentions=DEFAULT_MENTIONS)
-    ctx = AppContext(bot=bot, config=config, settings=Settings())
+    ctx = AppContext(bot=bot, config=config, settings=Settings(), privacy=Privacy())
     bot.ctx = ctx
     register_events(bot, ctx)
     return bot, ctx
@@ -144,6 +160,7 @@ def register_events(bot: NaviBot, ctx: AppContext) -> None:
         # Initialise database
         ctx.db = init_db()
         ctx.settings.bind(ctx.db)
+        ctx.privacy = Privacy(connect_privacy(ctx.config.privacy_db_path or Path(db_connection.DB_PATH).parent / "privacy.db"))
         seed_local_knowledge(ctx.db)
         seed_templates(ctx.db)
         log_session_event(ctx.db, "start")
@@ -188,7 +205,7 @@ def register_events(bot: NaviBot, ctx: AppContext) -> None:
         start_task(ctx, "market_hourly", market_hourly_loop(ctx))
         start_task(ctx, "retention", retention_loop(ctx))
         start_task(ctx, "template_batches", template_batch_loop(ctx))
-        start_task(ctx, "partner_api", run_api_server(ctx.db, allowed_guild_id=ctx.config.guild_id, settings=ctx.settings))
+        start_task(ctx, "partner_api", run_api_server(ctx.db, allowed_guild_id=ctx.config.guild_id, settings=ctx.settings, privacy=ctx.privacy))
 
         await bot.tree.sync()
         logger.info("Slash commands synced. Navi is live. Hey! Listen!")

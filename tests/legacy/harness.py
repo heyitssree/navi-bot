@@ -6,6 +6,7 @@ import discord
 
 from navi.config import Config
 from navi.context import AppContext
+from navi.services.privacy import Privacy
 from navi.settings.store import Settings
 
 BOT_ID = 999
@@ -54,7 +55,7 @@ def make_ctx(db, llm=None, **cfg):
         user=SimpleNamespace(id=BOT_ID, mentioned_in=lambda m: False),
         application_info=AsyncMock(),
     )
-    ctx = AppContext(bot=bot, config=make_config(**cfg), settings=Settings())
+    ctx = AppContext(bot=bot, config=make_config(**cfg), settings=Settings(), privacy=Privacy())
     ctx.db = db
     ctx.settings.bind(db)
     ctx.llm = llm

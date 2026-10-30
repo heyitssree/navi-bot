@@ -73,7 +73,7 @@ async def run_lucky_draw(ctx, announce_channel: discord.abc.Messageable | None =
     _IST = timezone(timedelta(hours=5, minutes=30))
     today_str = datetime.now(_IST).strftime("%Y-%m-%d")
 
-    active_ids = get_active_user_ids_previous_day(ctx.db)
+    active_ids = [i for i in get_active_user_ids_previous_day(ctx.db) if not ctx.privacy.is_opted_out(i)]
     if not active_ids:
         return "No active users from the previous day — draw skipped."
 

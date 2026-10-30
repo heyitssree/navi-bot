@@ -148,6 +148,7 @@ def reset_all_strikes(conn: sqlite3.Connection) -> int:
 def get_random_recent_user(
     conn: sqlite3.Connection,
     exclude_id: int,
+    exclude_ids: frozenset[int] | set[int] = frozenset(),
 ) -> dict | None:
     """Return a random user who used /navi in the last 24 hours, excluding exclude_id.
 
@@ -163,6 +164,7 @@ def get_random_recent_user(
         """,
         [exclude_id],
     ).fetchall()
+    rows = [r for r in rows if r[0] not in exclude_ids]     # e.g. users who opted out of Navi
     if not rows:
         return None
     row = random.choice(rows)

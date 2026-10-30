@@ -14,6 +14,7 @@ if TYPE_CHECKING:
 
     from navi.config import Config
     from navi.llm.router import LLMRouter
+    from navi.services.privacy import Privacy
     from navi.settings.store import Settings
 
 
@@ -32,6 +33,7 @@ class RuntimeState:
     slang_cooldown: dict[int, datetime] = field(default_factory=dict)
     summarized_messages: set[int] = field(default_factory=set)
     temp_vc_registry: dict[int, asyncio.Task] = field(default_factory=dict)
+    limit_notice: dict[int, float] = field(default_factory=dict)   # user -> time we last told them they hit a Q&A limit
     recent_templates: dict[tuple[int, str], deque] = field(default_factory=dict)   # (user, kind) -> last 5 template ids
 
 
@@ -40,6 +42,7 @@ class AppContext:
     bot: "discord.Client"
     config: "Config"
     settings: "Settings"
+    privacy: "Privacy | None" = None             # opt-out set (+ privacy.db); set by app.build
     state: RuntimeState = field(default_factory=RuntimeState)
     db: sqlite3.Connection | None = None      # opened in on_ready
     llm: "LLMRouter | None" = None            # created in on_ready (needs the DB for the template pool)

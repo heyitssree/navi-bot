@@ -13,7 +13,6 @@
 # Deduplication: game_id is stored in partner_score_log with a UNIQUE constraint.
 # A duplicate submission returns HTTP 409 without awarding points.
 
-from __future__ import annotations
 
 import logging
 import os
@@ -60,7 +59,7 @@ def _is_rate_limited(guild_id: int, limit: int = 10) -> bool:
 # FastAPI app factory — called from bot.py on_ready with the shared db_conn
 # ---------------------------------------------------------------------------
 
-def create_app(db_conn: sqlite3.Connection, allowed_guild_id: int | None, settings=None) -> Any:
+def create_app(db_conn: sqlite3.Connection, allowed_guild_id: int | None, settings=None, privacy=None) -> Any:
     """Build and return the FastAPI app.
 
     db_conn:          The shared SQLite connection from the bot process.
@@ -125,6 +124,10 @@ def create_app(db_conn: sqlite3.Connection, allowed_guild_id: int | None, settin
         # Check feature toggle — admin can disable partner point awards via the feature.partner_api setting
         if not settings.get("feature.partner_api"):
             raise HTTPException(status_code=503, detail="Partner API awards are currently disabled by admin.")
+
+        if privacy is not None and privacy.is_opted_out(payload.user_id):
+            # opted out of Navi: no profile is recreated and no points are recorded
+            return {"status": "opted_out", "boli_awarded": 0, "xp_awarded": 0, "game_id": game_id}
 
         # Normalize score → external Boli (1:1, negatives kept as deductions)
         boli = _normalize_score(payload.points)
@@ -202,7 +205,7 @@ def create_app(db_conn: sqlite3.Connection, allowed_guild_id: int | None, settin
                 logger.warning("internal_boli_award: invalid discord_id %r — skipping", discord_id_str)
                 continue
 
-            if amount <= 0:
+            if amount <= 0 or (privacy is not None and privacy.is_opted_out(user_id)):
                 continue
 
             # Best-effort username from the existing user row (may be empty string)
@@ -243,7 +246,7 @@ def create_app(db_conn: sqlite3.Connection, allowed_guild_id: int | None, settin
     return app
 
 
-async def run_api_server(db_conn: sqlite3.Connection, allowed_guild_id: int | None = None, settings=None) -> None:
+async def run_api_server(db_conn: sqlite3.Connection, allowed_guild_id: int | None = None, settings=None, privacy=None) -> None:
     """Start the uvicorn server as a coroutine (run with asyncio.create_task).
 
     Listens on 0.0.0.0:8080 by default. Override with API_SERVER_PORT env var.
@@ -254,7 +257,7 @@ async def run_api_server(db_conn: sqlite3.Connection, allowed_guild_id: int | No
         logger.error("uvicorn not installed — partner API server will not start. Run: pip install uvicorn[standard]")
         return
 
-    app = create_app(db_conn, allowed_guild_id, settings)
+    app = create_app(db_conn, allowed_guild_id, settings, privacy)
     if app is None:
         return
 

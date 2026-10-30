@@ -3,6 +3,7 @@ import asyncio
 from navi.app import shutdown
 from navi.config import load_ssm_parameters
 from navi.handlers import pipeline
+from navi.handlers.context_reply import handle_context_reply
 from navi.handlers.curse_commands import handle_chunk_command, handle_navi_command
 from navi.handlers.kochi import handle_kochi
 from navi.handlers.mention_qa import handle_mention_qa
@@ -16,7 +17,7 @@ from tests.legacy.harness import FakeUser, make_ctx, make_message
 def test_pipeline_order_is_the_documented_order():
     assert pipeline.HANDLERS == [
         pipeline.track_user, handle_shortcut, handle_vibe, handle_slang_points,
-        handle_kochi, handle_mention_qa, handle_navi_command, handle_chunk_command, handle_passive_curse,
+        handle_kochi, handle_context_reply, handle_mention_qa, handle_navi_command, handle_chunk_command, handle_passive_curse,
     ]
     doc = pipeline.__doc__
     for word in ("shortcuts", "mention_qa", "curse command", "bless command", "passive_curse"):

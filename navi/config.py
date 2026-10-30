@@ -51,6 +51,7 @@ class Config:
     owner_id: int | None   # Set OWNER_ID in .env so no other user can ever invoke /admin commands.
     guild_id: int | None
     partner_port: int
+    privacy_db_path: str | None = None   # default: privacy.db next to the main database
 
     @classmethod
     def from_env(cls) -> "Config":
@@ -73,4 +74,5 @@ class Config:
             owner_id=int(raw_owner) if raw_owner.isdigit() else None,
             guild_id=int(os.getenv("GUILD_ID", "0")) or None,
             partner_port=int(os.getenv("API_SERVER_PORT", "8080")),
+            privacy_db_path=os.getenv("PRIVACY_DB_PATH"),
         )

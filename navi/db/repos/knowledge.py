@@ -161,3 +161,41 @@ def set_knowledge_status(conn: sqlite3.Connection, knowledge_id: int, status: st
         conn.commit()
         return cur.rowcount
     return _db_write(_write) > 0
+
+
+def add_knowledge(
+    conn: sqlite3.Connection, category: str, term: str, description: str, tags: str = "",
+    status: str = "active", submitted_by: int | None = None, approved_by: int | None = None,
+) -> int | None:
+    """Insert a /teach entry. Returns its id, or None if (category, term) already exists."""
+    def _write() -> int | None:
+        cur = conn.execute(
+            "INSERT OR IGNORE INTO knowledge (category, term, description, tags, status, submitted_by, approved_by)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?)",
+            [category, term, description, tags, status, submitted_by, approved_by],
+        )
+        conn.commit()
+        return cur.lastrowid if cur.rowcount else None
+    return _db_write(_write)
+
+
+def list_knowledge(conn: sqlite3.Connection, status: str = "active", limit: int = 25) -> list[dict]:
+    rows = conn.execute(
+        "SELECT id, category, term, description, status, submitted_by FROM knowledge WHERE status = ? ORDER BY id DESC LIMIT ?",
+        [status, limit],
+    ).fetchall()
+    return [{"id": r[0], "category": r[1], "term": r[2], "description": r[3], "status": r[4], "submitted_by": r[5]} for r in rows]
+
+
+def all_terms(conn: sqlite3.Connection) -> list[tuple[str, str]]:
+    """(term, category) of every entry in any status, for duplicate checks."""
+    return [(r[0], r[1]) for r in conn.execute("SELECT term, category FROM knowledge")]
+
+
+def remove_knowledge(conn: sqlite3.Connection, term: str) -> int:
+    """Delete entries whose term matches (case-insensitive). Returns how many were removed."""
+    def _write() -> int:
+        cur = conn.execute("DELETE FROM knowledge WHERE lower(term) = lower(?)", [term])
+        conn.commit()
+        return cur.rowcount
+    return _db_write(_write)

@@ -85,12 +85,13 @@ def _command_tree():
 
 
 REMOVED_IN_PHASE_4 = {"health"}
+ADDED_IN_PHASE_6 = {"privacy", "teach"}
 ADMIN_SURFACE = {"panel", "set", "get", "reset", "killswitch", "testing", "status", "review", "export", "import", "user", "teach"}
 
 
 def test_slash_command_surface_outside_admin_is_unchanged():
     """Everything except /admin (rebuilt in Phase 4) and the removed /health matches the pre-refactor snapshot."""
-    new = [c for c in _command_tree() if c["name"] != "admin"]
+    new = [c for c in _command_tree() if c["name"] not in {"admin"} | ADDED_IN_PHASE_6]
     base = [c for c in json.loads((ROOT / "tests/fixtures/command_tree_baseline.json").read_text())
             if c["name"] not in {"admin"} | REMOVED_IN_PHASE_4]
     assert new == base

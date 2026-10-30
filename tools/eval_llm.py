@@ -28,6 +28,7 @@ import yaml
 from navi.data.messages import FALLBACK_MESSAGES
 from navi.llm import policy
 from navi.llm.base import LLMError, LLMRequest
+from navi.llm.prompts.qa import get_context_prompt
 from navi.llm.prompts import get_navi_prompt, get_qa_prompt, get_time_aware_system_prompt
 from navi.llm.safety import SafetyFilter, load_blocklist
 
@@ -88,8 +89,8 @@ def build_request(case: Case, db=None, previous_reply: str = "Navi had a thought
     system = get_time_aware_system_prompt(None, username="Link")
     if case.purpose == "context_reply":
         lines = [h.replace("<previous Navi reply>", previous_reply) for h in case.history]
-        convo = "\n".join(f"{'Navi' if i % 2 else 'User'}: {t}" for i, t in enumerate(lines))
-        prompt = get_qa_prompt("Tester", f"{convo}\nUser: {case.input}")
+        history = [("Navi" if i % 2 else "User", t) for i, t in enumerate(lines)]
+        prompt = get_context_prompt("Tester", history, str(case.input))
     else:
         prompt = get_qa_prompt("Tester", str(case.input))
     return LLMRequest(purpose=case.purpose, system=system + suffix, prompt=prompt)

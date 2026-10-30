@@ -67,6 +67,10 @@ class ModerationCog(commands.Cog):
             except discord.Forbidden:
                 rules_text = "(Could not read rules channel — missing permissions)"
 
+        if ctx.privacy.is_opted_out(user.id) and not ctx.settings.get("privacy.audit_includes_optouts"):
+            await interaction.followup.send("That person has opted out of Navi, so their messages are not audited.", ephemeral=True)
+            return
+
         # Fetch user messages
         target_ch = channel or interaction.channel
         user_lines: list[str] = []
@@ -125,7 +129,7 @@ class ModerationCog(commands.Cog):
         _mention_re = re.compile(r"<@!?\d+>|<#\d+>|<@&\d+>")
 
         async for msg in thread.history(limit=500, oldest_first=True):
-            if msg.author.bot:
+            if msg.author.bot or ctx.privacy.is_opted_out(msg.author.id):
                 continue
             text = _mention_re.sub("[user]", msg.content).strip()
             if text and not text.startswith("/"):

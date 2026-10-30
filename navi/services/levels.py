@@ -50,6 +50,8 @@ async def maybe_announce_levelup(ctx, mention: str,
 
     Level is now derived from XP (experience column), never from boli_points.
     """
+    if ctx.privacy.is_opted_out(user_id):
+        return
     xp = get_experience(ctx.db, user_id)
     level = get_level_from_points(xp)
 

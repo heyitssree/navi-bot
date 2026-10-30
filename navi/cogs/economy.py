@@ -278,7 +278,7 @@ class EconomyCog(commands.Cog):
         random_pick: dict | None = None
         if actual_recipient is None:
             random_pick = await asyncio.get_running_loop().run_in_executor(
-                None, lambda: get_random_recent_user(ctx.db, sender_id)
+                None, lambda: get_random_recent_user(ctx.db, sender_id, ctx.privacy.opted_out)
             )
             if not random_pick:
                 await interaction.response.send_message(
@@ -302,6 +302,9 @@ class EconomyCog(commands.Cog):
                 )
                 return
 
+        if ctx.privacy.is_opted_out(actual_recipient.id):
+            await interaction.response.send_message("That person has opted out of Navi and can't receive gifts.", ephemeral=True)
+            return
         if actual_recipient.id == sender_id:
             await interaction.response.send_message("You can't gift points to yourself.", ephemeral=True)
             return

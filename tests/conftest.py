@@ -15,6 +15,8 @@ for _k in ("DISCORD_TOKEN", "GEMINI_API_KEY_FREE", "GEMINI_API_KEY_PAID", "GEMIN
 
 import pytest  # noqa: E402
 
+from navi.llm import safety  # noqa: E402
+
 
 @pytest.fixture()
 def db(tmp_path, monkeypatch):
@@ -29,3 +31,12 @@ def db(tmp_path, monkeypatch):
 @pytest.fixture(autouse=True)
 def _chdir_root(monkeypatch):
     monkeypatch.chdir(ROOT)
+
+
+@pytest.fixture()
+def blocked():
+    """A filter with harmless dummy blocklist entries (the real blocklist is owner-supplied)."""
+    safety.configure(settings=None, blocklist=["zorgblat", "snarf wibble", "മോശം"], allowed_terms=[])
+    yield safety._filter
+    safety.configure(settings=None, blocklist=[], allowed_terms=[])
+    safety._filter.settings = None

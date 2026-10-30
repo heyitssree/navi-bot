@@ -17,7 +17,6 @@ Run this ONCE after the bot has been stopped and before restarting with the new 
 """
 
 import csv
-import sqlite3
 import sys
 from pathlib import Path
 

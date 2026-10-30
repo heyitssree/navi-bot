@@ -281,3 +281,53 @@ One registry, one control surface. 692 tests pass (stable over repeated runs).
 - The "deflects" check is a keyword heuristic on the raw reply; it is reported, not gated. The gate is post-filter violations of the hard checks.
 - Rejected text is stored verbatim in `content` for review (as the spec asks), so a blocked reply can contain the offending words in the database.
 - `/teach` submissions and context-reply history (Phase 6) will call `safety.check_output` as well.
+
+## Phase 6 - Features (branch `v2/phase-6-features`)
+
+824 tests pass. The manual two-account run in the test server (gate) is not done.
+
+### 10.4 /privacy
+- `Privacy` service (`ctx.privacy`) with the single `is_opted_out()` helper, backed by `privacy.db` (only user id, status, time; created next to the main
+  DB, overridable with `PRIVACY_DB_PATH`) and an in-memory set loaded at startup.
+- `/privacy status | opt_out | opt_in`, all ephemeral. Opt-out shows what will be deleted and what it means (fresh profile later, backups 72 h, logs 14 days),
+  needs a Confirm press within 60 s, and is refused while the user has strikes (`privacy.block_optout_with_strikes`). The opt-out is written to `privacy.db`
+  and the memory set FIRST (tested with a forced purge failure), then one transaction deletes the user from users, daily_counters, points_ledger, holdings,
+  perks, media, game_results, prediction_history, events and permissions, clears `counterparty_id` / `submitted_by` / `approved_by` / `reviewed_by` /
+  `updated_by` (and `granted_by` -> 0) on other people's rows, removes local media files and application emojis only they used, clears every in-memory trace
+  (seen set, level cache, last-seen buffer, cooldown and spam maps, template history, Q&A limits) and writes an `events` row with no user id.
+  A test checks every user-reference column of every table for zero rows.
+- Opt-in respects `privacy.optin_cooldown_days` (shows the date it opens) and brings back nothing: the profile is recreated on the next interaction.
+- Enforcement, each with a test: pipeline drops their messages right after the killswitch (no points, logs, replies, counters); every slash command except
+  `/privacy` answers "You've opted out of Navi..." (the owner keeps `/admin`); `navi @user`, reply-curse, `chunk @user` and reply-bless are refused before the
+  quota is touched; `/gift` (explicit recipient and the random picker), `/kanmanilla`, `/navi <name>`; welcome and level-up messages; lucky-draw candidates;
+  `/summ` and `/mod_tldr` drop their messages; `/audit` follows `privacy.audit_includes_optouts`; link-summary reactions by or on their messages are ignored;
+  partner API awards no longer recreate their profile.
+- Limitation: the vibe-check tracker stores message text per channel without user ids, so there is nothing to clear per user (it expires in 15 s).
+  S3 objects for media arrive with the AWS storage layer in Phase 8; local files are removed now.
+
+### 10.1 Context-aware replies
+- `handlers/context_reply.py`, pipeline position 6 (before mention Q&A). Active only with `feature.context_replies`, `channel.bot_commands` and the
+  message in that channel replying to Navi or mentioning Navi. Context = the reply chain only (4 hops, 1,200 characters, never channel history): Navi's own
+  messages and the asker's, opted-out users and other people skipped, mentions scrubbed, each line run through the safety filter. The same chain elsewhere is
+  still ignored. Shares `ai.qa_cooldown_seconds` and `ai.qa_daily_cap` with mention Q&A; going over gets one in-character note per window, then silence.
+
+### 10.2 Q&A cost levers (`services/qa.py`, also used by mention Q&A)
+- "what is / meaning of / where is X" answered from knowledge when `token_set_ratio >= 90`; answer cache in `content` (`qa_answer`, similarity >= 92,
+  within `ai.qa_cache_ttl_days`, never for today/now/latest/score/weather/time questions, asker's name stored as `{user}`); then the LLM. Shortcuts do not use up a
+  user's allowance. Context replies skip both shortcuts.
+
+### 10.3 /teach
+- `/teach add category term description [tags]` (landmark, food, culture, expression; term 2-60, description 10-200), `/teach list [status]`,
+  `/teach remove <term>`. Owner and `manage_messages` members publish at once; users approved with `/admin teach allow` go to `/admin review`; everyone else
+  gets an ephemeral refusal. Input is stripped of mentions and URLs, run through the safety filter, checked for exact (refused) and fuzzy >= 90 duplicates
+  (asks "similar to X, add anyway?"; pending and rejected entries count). Active `expression` entries become approved Manglish terms: the prompt policy and
+  allow-list are rebuilt after add, remove and approval.
+
+### Found and fixed
+- **The partner API rejected every request with 422.** `navi/api/partner.py` (and the original `api_server.py`, checked at `a0b480d` with the same installed
+  FastAPI) used `from __future__ import annotations` with request models defined inside `create_app`, so FastAPI could not resolve them and treated them as
+  required query parameters. Removed the future import; `tests/phase6/test_partner_api.py` now covers `/score`, dedupe, the feature switch and `/internal/boli/award`.
+
+### Notes
+- Live `/navi` predictions and generated templates still go through review (Phase 5); `/teach` entries from approved users use the same `/admin review` queue.
+- `rapidfuzz` and `pyyaml` are now in `requirements.txt`.

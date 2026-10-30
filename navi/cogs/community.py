@@ -156,6 +156,8 @@ class CommunityCog(commands.Cog):
     async def on_member_join(self, member: discord.Member) -> None:
         """Welcome new member after a 1-minute delay, routing on verification status."""
         ctx = self.ctx
+        if ctx.privacy.is_opted_out(member.id):
+            return                                    # no profile, no welcome message for opted-out users
         channel = (
             discord.utils.get(member.guild.text_channels, name=ctx.config.general_channel)
             or discord.utils.get(member.guild.text_channels, name="general")

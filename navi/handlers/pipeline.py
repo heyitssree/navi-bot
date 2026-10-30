@@ -3,18 +3,19 @@
 Each handler is `async def handler(ctx, message) -> bool` and returns True when it consumed the message
 (processing stops). The ORDER below is exactly the order of the old monolithic on_message and must be kept:
 
-  guards (inline)  db not ready / master killswitch / bots / replies to Navi -> ignore
+  guards (inline)  db not ready / master killswitch -> ignore
+                   opted-out author (privacy) -> drop: no points, logging, replies or counters
+                   bots -> ignore; replies to Navi -> ignore, except in the bot-commands channel when context replies are on
    1. track_user     last_seen + first-message-per-session upsert                  never consumes
    2. shortcuts      ";;name" local media shortcut                                 consumes when it matched
    3. vibe           channel heat tracker                                          never consumes
    4. slang_points   Boli for slang triggers + slang dictionary (spam gated)       never consumes
    5. kochi          Kochi slang -> condescending reply (chance)                   consumes when it fires
-   6. mention_qa     @Navi question -> LLM answer                                  consumes on any mention
-   7. curse command  "navi", "navi @user", reply "navi"                            consumes
-   8. bless command  "chunk", "chunk @user", reply "chunk"                         consumes
-   9. passive_curse  curse word in any message -> +1 Boli, LLM line (chance)       never consumes
-
-Later phases insert the privacy gate (before 1, after the guards) and the #bot-commands context reply (before 7).
+   6. context_reply  reply chain / mention in the bot-commands channel             consumes when it applies
+   7. mention_qa     @Navi question -> knowledge / cache / LLM answer              consumes on any mention
+   8. curse command  "navi", "navi @user", reply "navi"                            consumes
+   9. bless command  "chunk", "chunk @user", reply "chunk"                         consumes
+  10. passive_curse  curse word in any message -> +1 Boli, reviewed template       never consumes
 """
 
 from __future__ import annotations
@@ -25,6 +26,7 @@ from datetime import datetime, timezone
 import discord
 
 from navi.db.repos.users import upsert_user
+from navi.handlers.context_reply import handle_context_reply, in_context_channel
 from navi.handlers.curse_commands import handle_chunk_command, handle_navi_command
 from navi.handlers.kochi import handle_kochi
 from navi.handlers.mention_qa import handle_mention_qa
@@ -53,6 +55,7 @@ HANDLERS = [
     handle_vibe,
     handle_slang_points,
     handle_kochi,
+    handle_context_reply,
     handle_mention_qa,
     handle_navi_command,
     handle_chunk_command,
@@ -69,6 +72,10 @@ async def on_message(ctx, message: discord.Message) -> None:
     if ctx.settings.get("system.killswitch"):
         return
 
+    # Opted-out users: no points, logging, replies or counters - the message is dropped entirely
+    if ctx.privacy.is_opted_out(message.author.id):
+        return
+
     # Ignore other bots
     if message.author.bot:
         return
@@ -76,7 +83,7 @@ async def on_message(ctx, message: discord.Message) -> None:
     # Ignore replies to bot's own messages
     if message.reference:
         resolved = message.reference.resolved or message.reference.cached_message
-        if isinstance(resolved, discord.Message) and resolved.author.id == ctx.bot.user.id:
+        if isinstance(resolved, discord.Message) and resolved.author.id == ctx.bot.user.id and not in_context_channel(ctx, message):
             return
 
     for handler in HANDLERS:

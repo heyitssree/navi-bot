@@ -23,7 +23,6 @@ from navi.db.connection import connect
 from navi.db.migrate import migrate
 from navi.db.repos import games as games_repo
 from navi.db.repos import points as points_repo
-from navi.db.repos import users as users_repo
 from navi.db.repos.privacy import connect_privacy
 from navi.services.template_pool import seed_templates
 from navi.settings.registry import BY_LEGACY, INTENTIONALLY_DROPPED, RESET_ON_MIGRATE

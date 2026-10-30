@@ -199,9 +199,7 @@ def test_old_hardcoded_constants_are_gone():
 
 def test_every_setting_used_in_code_is_consumed_somewhere():
     """A registry entry nobody reads would be a dead knob. Allow-list: settings whose consumer arrives in a later phase."""
-    later = {"ai.bedrock_model_id", "ai.qa_cache_ttl_days", "safety.allow_malayalam_script", "safety.template_auto_approve",
-             "safety.template_batch_size", "feature.context_replies", "feature.teach", "channel.bot_commands",
-             "privacy.optin_cooldown_days", "privacy.block_optout_with_strikes", "privacy.audit_includes_optouts"}
+    later = {"ai.bedrock_model_id"}          # its consumer (the Bedrock provider) arrives in Phase 7
     text = "\n".join(p.read_text() for p in Path("navi").rglob("*.py") if "registry.py" not in p.name)
     unused = {k for k in BY_KEY if f'"{k}"' not in text and f"'{k}'" not in text}
     assert unused - later == set(), unused - later

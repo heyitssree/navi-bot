@@ -30,6 +30,10 @@ Gemini for the chatty parts; the curse/bless game itself uses no AI.
 - Local media shortcuts: save an emoji or sticker and post it with `;;name` (`/my_media`).
 - `/navi_challenge` and `/type_race` exist but are disabled by default.
 
+**Privacy and knowledge**: `/privacy opt_out|opt_in|status` deletes all your data and makes Navi ignore you (and never target or mention you); `/teach add|list|remove`
+lets the owner, moderators and approved teachers extend Navi's local knowledge. Mention Q&A answers from knowledge or a cache before using the LLM, and in the
+configured bot-commands channel Navi follows reply chains (`feature.context_replies`, `channel.bot_commands`).
+
 **Admin** (`/admin ...`, owner or the `system.panel_role` role): `panel` (browse and edit every setting), `set` / `get` / `reset`, `killswitch`, `status`,
 `user points|strikes_reset|game_attempts_reset`, `teach allow|revoke|list`, `review`, `export` / `import`, `testing`. Every runtime knob is one line in
 `navi/settings/registry.py`; changes apply immediately.

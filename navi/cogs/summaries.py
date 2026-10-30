@@ -131,8 +131,8 @@ class SummariesCog(commands.Cog):
         _mention_re = re.compile(r"<@!?\d+>|<#\d+>|<@&\d+>")
         lines: list[str] = []
         for msg in raw_messages:
-            if msg.author.bot:
-                continue
+            if msg.author.bot or ctx.privacy.is_opted_out(msg.author.id):
+                continue                      # bots and opted-out users never enter a prompt
             text = _mention_re.sub("[mentioned-user]", msg.content).strip()
             if not text or text.startswith("/"):
                 continue
@@ -173,6 +173,10 @@ class SummariesCog(commands.Cog):
             await interaction.response.send_message(
                 "Kanmanilla feature is currently disabled.", ephemeral=True
             )
+            return
+
+        if ctx.privacy.is_opted_out(user.id):
+            await interaction.response.send_message("That person has opted out of Navi.", ephemeral=True)
             return
 
         if user.bot:
@@ -260,6 +264,9 @@ class SummariesCog(commands.Cog):
             message = await channel.fetch_message(payload.message_id)
         except (discord.NotFound, discord.Forbidden):
             return
+
+        if ctx.privacy.is_opted_out(message.author.id) or ctx.privacy.is_opted_out(payload.user_id):
+            return                            # nothing is summarised for or about an opted-out user
 
         raw_urls = _URL_RE.findall(message.content)
         if not raw_urls:

@@ -13,7 +13,7 @@ async def test_on_ready_initialises_everything_and_shutdown_is_clean(tmp_path, m
     monkeypatch.setattr(app, "do_backup", lambda: "backup")
     ran = []
 
-    async def fake_api(db, allowed_guild_id=None, settings=None):
+    async def fake_api(db, allowed_guild_id=None, settings=None, privacy=None):
         ran.append("api")
 
     monkeypatch.setattr(app, "run_api_server", fake_api)
@@ -46,7 +46,7 @@ async def test_config_error_dm_goes_to_owner(tmp_path, monkeypatch):
     monkeypatch.setattr("navi.db.connection.DB_PATH", tmp_path / "navi.db")
     monkeypatch.setattr(app, "do_backup", lambda: "backup")
 
-    async def fake_api(db, allowed_guild_id=None, settings=None):
+    async def fake_api(db, allowed_guild_id=None, settings=None, privacy=None):
         return None
 
     monkeypatch.setattr(app, "run_api_server", fake_api)

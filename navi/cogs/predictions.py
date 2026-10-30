@@ -49,6 +49,10 @@ class PredictionsCog(commands.Cog):
             )
             return
 
+        if user is not None and ctx.privacy.is_opted_out(user.id):
+            await interaction.response.send_message("That person has opted out of Navi.", ephemeral=True)
+            return
+
         # Bot-loop protection: reject attempts to get predictions for other bots
         if user is not None and user.bot:
             await interaction.response.send_message(

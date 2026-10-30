@@ -47,6 +47,9 @@ async def handle_navi_command(ctx, message: discord.Message) -> bool:
             if target.bot:
                 await message.reply(f"{invoker.mention} {random.choice(BOT_LOOP_CURSE_REPLIES)}")
                 return True
+            if ctx.privacy.is_opted_out(target.id):
+                await message.reply("That person has opted out of Navi, so the stars leave them alone.")
+                return True
 
             # --- Curse Timeout check: invoker may be blocked by a Timeout Ticket ---
             if has_active_perk(ctx.db, invoker.id, "curse_timeout"):
@@ -152,6 +155,9 @@ async def handle_navi_command(ctx, message: discord.Message) -> bool:
             resolved = message.reference.resolved or message.reference.cached_message
             if isinstance(resolved, discord.Message) and not resolved.author.bot:
                 target = resolved.author
+                if ctx.privacy.is_opted_out(target.id):
+                    await message.reply("That person has opted out of Navi, so the stars leave them alone.")
+                    return True
                 if await check_cosmic_quota(ctx, invoker, message, "curse"):
                     return True
                 curse_data = get_random_curse()
@@ -263,6 +269,9 @@ async def handle_chunk_command(ctx, message: discord.Message) -> bool:
             if target.bot:
                 await message.reply(f"{invoker.mention} {random.choice(BOT_LOOP_COMPLIMENT_REPLIES)}")
                 return True
+            if ctx.privacy.is_opted_out(target.id):
+                await message.reply("That person has opted out of Navi, so the stars leave them alone.")
+                return True
             await _do_bless(target)
             return True
 
@@ -270,6 +279,9 @@ async def handle_chunk_command(ctx, message: discord.Message) -> bool:
         if message.reference:
             resolved = message.reference.resolved or message.reference.cached_message
             if isinstance(resolved, discord.Message) and not resolved.author.bot:
+                if ctx.privacy.is_opted_out(resolved.author.id):
+                    await message.reply("That person has opted out of Navi, so the stars leave them alone.")
+                    return True
                 await _do_bless(resolved.author)
                 return True
 

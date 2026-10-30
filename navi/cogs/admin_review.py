@@ -5,6 +5,7 @@ from __future__ import annotations
 import discord
 
 from navi.db.repos.content import list_pending_content, set_content_status
+from navi.services.teach import refresh_policy
 from navi.db.repos.knowledge import list_pending_knowledge, set_knowledge_status
 
 BATCH = 5
@@ -58,6 +59,7 @@ class ReviewView(discord.ui.View):
         status = "active" if approve else "rejected"
         if item["source"] == "knowledge":
             set_knowledge_status(self.ctx.db, item["id"], status, interaction.user.id)
+            refresh_policy(self.ctx)          # an approved 'expression' term becomes an approved Manglish word
         else:
             set_content_status(self.ctx.db, item["id"], status, interaction.user.id)
         self.done[index] = "approved" if approve else "rejected"

@@ -195,6 +195,11 @@ class HelpCog(commands.Cog):
             if mod_lines:
                 embed.add_field(name="🛡️ Mod Commands", value="\n".join(mod_lines), inline=False)
 
+        extra = ["`/privacy opt_out|opt_in|status` — Delete your data and make Navi ignore you, or come back"]
+        if ctx.settings.get("feature.teach"):
+            extra.append("`/teach add|list|remove` — Add local knowledge (owner, moderators and approved teachers)")
+        embed.add_field(name="🔒 Privacy and knowledge", value="\n".join(extra), inline=False)
+
         embed.set_footer(text=f"Powered by Gemini · {ctx.settings.get('limit.daily_cosmic_actions')} cosmic actions/day · {ctx.settings.get('limit.game_daily')} gambling plays/day · Resets midnight IST")
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
