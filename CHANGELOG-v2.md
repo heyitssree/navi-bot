@@ -406,3 +406,7 @@ One registry, one control surface. 692 tests pass (stable over repeated runs).
   pointing at the bot-commands channel, then Navi ignores that person's AI conversation for 5 minutes. No limit in bot-commands; nothing else changes (the handler already owned only mentions).
   Settings: `feature.chat_redirect`, `chat.redirect_calls` (4), `chat.redirect_window_seconds` (300), `chat.redirect_cooldown_seconds` (300). Inactive until `channel.bot_commands` is set.
 - Tests: 11 new in `tests/phase9`; 907 pass.
+
+### Fix found on the first live run
+- `services/mentions.only_user()` gave discord.py bare integer ids, but `AllowedMentions.users` needs objects with an `.id`, so every reply using it raised `AttributeError` (@Navi answers,
+  predictions, passive curse replies). Now wraps ids in `discord.Object`. The tests had used fakes, so a test now asserts `AllowedMentions.to_dict()` from the real library. Also set `MPLCONFIGDIR` in the image.

@@ -100,7 +100,7 @@ async def test_passive_curse_makes_no_llm_calls_and_keeps_the_boli_award(curse_e
     reply = msg.reply.await_args.args[0]
     assert "{user}" not in reply and "{curse}" not in reply
     assert reply in {fill(t, "asha", "mandan") for t in (*DOOMED_PREDICTIONS, *CURSE_BACK_REPLIES)}
-    assert msg.reply.await_args.kwargs["allowed_mentions"].users == [1]  # can only ping the author
+    assert [u.id for u in msg.reply.await_args.kwargs["allowed_mentions"].users] == [1]  # can only ping the author
 
 
 async def test_passive_curse_respects_chance_and_switch(curse_env, monkeypatch):
@@ -225,7 +225,8 @@ def test_bot_wide_allowed_mentions_block_everyone_and_roles():
 
 def test_only_user_and_nobody():
     am = mentions.only_user(SimpleNamespace(id=5), 6)
-    assert (am.everyone, am.roles, am.users) == (False, False, [5, 6])
+    assert (am.everyone, am.roles, [u.id for u in am.users]) == (False, False, [5, 6])
+    assert am.to_dict() == {"parse": [], "users": [5, 6], "replied_user": True}          # what discord.py actually sends (the real library, not a fake)
     assert mentions.nobody().users is False and mentions.nobody().everyone is False
 
 

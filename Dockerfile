@@ -27,6 +27,7 @@ COPY docker/entrypoint.sh /entrypoint.sh
 
 # The container runs as uid 10001; the host mounts /var/lib/navi (owned by that uid) at /app/data.
 RUN useradd -r -u 10001 navi && mkdir -p /app/data && chown -R navi /app/data && chmod +x /entrypoint.sh
+ENV MPLCONFIGDIR=/tmp/matplotlib
 USER navi
 ENV PYTHONUNBUFFERED=1
 STOPSIGNAL SIGTERM

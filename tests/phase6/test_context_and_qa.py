@@ -61,7 +61,7 @@ async def test_three_turn_conversation_keeps_context(env):
     for needle in ("Kowdiar is near the palace.", "and what is nearby?", "Museums and a zoo."):
         assert needle in prompt3
     assert prompt3.index("palace") < prompt3.index("Museums")                  # oldest first
-    assert q3.reply.await_count == 1 and q3.reply.await_args.kwargs["allowed_mentions"].users == [1]
+    assert q3.reply.await_count == 1 and [u.id for u in q3.reply.await_args.kwargs["allowed_mentions"].users] == [1]
 
 
 async def test_the_same_chain_in_another_channel_gets_no_reply(env):

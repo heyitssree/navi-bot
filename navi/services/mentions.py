@@ -10,8 +10,11 @@ DEFAULT = discord.AllowedMentions(everyone=False, roles=False, users=True, repli
 
 
 def only_user(*users) -> discord.AllowedMentions:
-    """Allow pinging exactly these users (Member/User objects or IDs); nothing else."""
-    return discord.AllowedMentions(everyone=False, roles=False, users=[getattr(u, "id", u) for u in users], replied_user=bool(users))
+    """Allow pinging exactly these users (Member/User objects or IDs); nothing else.
+
+    discord.py's AllowedMentions.users wants objects with an `.id` (not bare ints), so IDs are wrapped in discord.Object."""
+    return discord.AllowedMentions(everyone=False, roles=False, users=[discord.Object(id=getattr(u, "id", u)) for u in users],
+                                   replied_user=bool(users))
 
 
 def nobody() -> discord.AllowedMentions:
