@@ -399,3 +399,4 @@ One registry, one control surface. 692 tests pass (stable over repeated runs).
 - Found and fixed on the way: `requirements.txt` had `matplotlib` and `rapidfuzz` glued together (from Phase 7), which broke the image build; a test now guards it.
 - Heartbeat alarm shows ALARM while the bot is idle (no heartbeat); the SNS email subscription still needs to be confirmed.
 - Still to do by the owner: `scripts/put-secrets.sh`, `scripts/put-config.sh`, confirm the SNS email, seed the database, `scripts/enable.sh`.
+- Switched the Bedrock model to Gemma 3 27B (`google.gemma-3-27b-it`) after `reports/model-compare-2026-10-30.md`; redeployed (IAM statement and instance config; the instance was replaced). After enabling, set `/admin set ai.price_input_per_mtok 0.28` and `ai.price_output_per_mtok 0.46` (approximate list prices) so the cost estimate is right.
