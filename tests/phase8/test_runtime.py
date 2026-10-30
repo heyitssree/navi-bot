@@ -5,18 +5,14 @@ import os
 import signal
 import subprocess
 from pathlib import Path
-from types import SimpleNamespace
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import MagicMock
 
-import boto3
 import pytest
 import yaml
-from botocore.stub import Stubber
 
 from navi.config import Config, load_ssm_parameters
 from navi.services import heartbeat, media_store
 from tests.legacy.harness import FakeUser, make_ctx, make_message
-from tests.phase6.helpers import interaction
 
 ROOT = Path(__file__).resolve().parents[2]
 
