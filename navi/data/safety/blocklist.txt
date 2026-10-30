@@ -1,0 +1,15 @@
+# Navi output blocklist - SUPPLIED AND MAINTAINED BY THE OWNER. The code never generates entries.
+#
+# Format
+#   * one entry per line; blank lines and lines starting with # are ignored
+#   * Manglish spellings (Latin letters) and Malayalam-script entries are both fine
+#   * matching is case-insensitive and runs on normalised text: Unicode NFKC, zero-width characters removed,
+#     common leetspeak undone (0->o 1->i 3->e 4->a 5->s 7->t @->a $->s), runs of 3+ repeated letters shortened
+#   * Latin entries match as whole words; entries of 5 or more characters are ALSO matched with spaces and
+#     punctuation removed ("b a d w o r d", "b-a-d-w-o-r-d")
+#   * Malayalam-script entries match anywhere inside the text
+#   * Navi's own playful curse words and approved terms (data/safety/allowlist.txt, written at startup) are
+#     removed from the text before matching, so they can never trip the filter
+#
+# A reply that hits this list is replaced by the feature's fallback text, logged as a safety_reject event and kept
+# (status 'rejected') for review. Add one entry per line below this header.

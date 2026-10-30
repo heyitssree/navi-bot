@@ -34,3 +34,5 @@ data/backups/
 .ruff_cache/
 data/v2/
 .DS_Store
+data/safety/allowlist.txt
+reports/*.tmp

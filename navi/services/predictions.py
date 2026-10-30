@@ -13,11 +13,11 @@ from navi.db.repos.content import (
     get_cached_prediction,
     get_last_n_predictions,
     get_todays_user_prediction,
-    save_prediction,
     save_user_prediction,
 )
 from navi.db.repos.users import get_user_profile, increment_prediction_count, upsert_user
 from navi.llm.base import LLMRequest
+from navi.services.template_pool import store_generated
 from navi.llm.prompts import get_navi_prompt, get_time_aware_system_prompt
 
 logger = logging.getLogger("navi.services.predictions")
@@ -103,7 +103,7 @@ async def get_navi_prediction(ctx, user_id: int, name: str, usage_count: int = 1
 
     if not from_cache and result not in FALLBACK_MESSAGES:
         template = templatize(result, name)
-        save_prediction(ctx.db, "navi", template, user_id=user_id, original_prompt=user_prompt)
+        store_generated(ctx, "prediction", template)      # safety-checked; pending review unless auto-approve is on
         save_user_prediction(ctx.db, user_id, result)
         increment_prediction_count(ctx.db, user_id)
 

@@ -3,4 +3,3 @@ pytest
 pytest-asyncio
 ruff
 freezegun
-rapidfuzz  # used from Phase 6

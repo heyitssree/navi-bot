@@ -27,7 +27,7 @@ async def test_on_ready_initialises_everything_and_shutdown_is_clean(tmp_path, m
     assert ctx.db is not None and ctx.llm is not None
     assert ctx.llm.provider.key_names == ["free"] and ctx.llm.free_tier_mode is True
     assert ctx.settings.get("feature.curses") is True
-    assert set(ctx.tasks) == {"backup", "last_seen_flush", "lucky_draw", "market_hourly", "partner_api", "retention"}
+    assert set(ctx.tasks) == {"backup", "last_seen_flush", "lucky_draw", "market_hourly", "partner_api", "retention", "template_batches"}
     bot.tree.sync.assert_awaited_once()
 
     # a message flows through the pipeline against the real temp database

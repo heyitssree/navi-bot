@@ -24,7 +24,11 @@ from navi.services.last_seen import flush_last_seen, last_seen_flush_loop
 from navi.services.lucky_draw import lucky_draw_loop
 from navi.services.market_loop import market_hourly_loop
 from navi.services.owner import dm_owner
+from navi.llm import safety
+from navi.llm.policy import build_policy, write_allowlist
+from navi.services.mentions import DEFAULT as DEFAULT_MENTIONS
 from navi.services.predictions import make_cache_lookup
+from navi.services.template_pool import seed_templates, store_rejected, template_batch_loop
 from navi.services.retention import retention_loop
 from navi.services.slang_scorer import load_slang_data
 from navi.services.templates import load_templates
@@ -124,7 +128,8 @@ async def shutdown(ctx: AppContext) -> None:
 def build(config: Config) -> tuple[NaviBot, AppContext]:
     intents = discord.Intents.all()
     intents.message_content = True
-    bot = NaviBot(command_prefix=commands.when_mentioned, intents=intents, tree_cls=NaviTree, help_command=None)
+    bot = NaviBot(command_prefix=commands.when_mentioned, intents=intents, tree_cls=NaviTree, help_command=None,
+                  allowed_mentions=DEFAULT_MENTIONS)
     ctx = AppContext(bot=bot, config=config, settings=Settings())
     bot.ctx = ctx
     register_events(bot, ctx)
@@ -140,6 +145,7 @@ def register_events(bot: NaviBot, ctx: AppContext) -> None:
         ctx.db = init_db()
         ctx.settings.bind(ctx.db)
         seed_local_knowledge(ctx.db)
+        seed_templates(ctx.db)
         log_session_event(ctx.db, "start")
 
         # LLM provider (free key first, paid as fallback) behind the router
@@ -158,6 +164,12 @@ def register_events(bot: NaviBot, ctx: AppContext) -> None:
         loop = asyncio.get_running_loop()
         ctx.llm.on_config_error = lambda text: loop.create_task(dm_owner(ctx, text))
         ctx.llm.seed_daily_calls(count_llm_calls_today(ctx.db))
+        # Safety: owner's blocklist, generated allow-list (approved + curse terms), prompt policy, rejection log
+        allowed = write_allowlist("data/safety/allowlist.txt", ctx.db)
+        safety.configure(settings=ctx.settings, blocklist=safety.load_blocklist(), allowed_terms=allowed)
+        ctx.llm.policy = build_policy(ctx.db)
+        ctx.llm.on_reject = lambda req, text, reasons: store_rejected(ctx.db, {"prediction": "prediction"}.get(req.purpose, req.purpose), text, reasons)
+        logger.info("Safety filter active: %d blocklist entries, %d allow-listed terms", safety._filter.entry_count, len(allowed))
         await ctx.llm.verify()
 
         # Load feature toggles and testing guild IDs into memory
@@ -175,6 +187,7 @@ def register_events(bot: NaviBot, ctx: AppContext) -> None:
         start_task(ctx, "lucky_draw", lucky_draw_loop(ctx))
         start_task(ctx, "market_hourly", market_hourly_loop(ctx))
         start_task(ctx, "retention", retention_loop(ctx))
+        start_task(ctx, "template_batches", template_batch_loop(ctx))
         start_task(ctx, "partner_api", run_api_server(ctx.db, allowed_guild_id=ctx.config.guild_id, settings=ctx.settings))
 
         await bot.tree.sync()

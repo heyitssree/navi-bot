@@ -237,3 +237,47 @@ One registry, one control surface. 692 tests pass (stable over repeated runs).
 ### Not run
 - The panel and commands were exercised with fake interaction objects (every visible setting renders a panel page; every setting round-trips
   parse -> set -> export -> reset). A manual pass in the test server (two accounts, panel role) still needs a Discord token.
+
+## Phase 5 - Content safety and template pools (branch `v2/phase-5-safety`)
+
+754 tests pass. **Not done: the live Gemini eval** (you asked to skip Gemini verification; the suite and tool are ready and run against any provider).
+
+### Done
+- `llm/safety.py`: NFKC + lower-case, zero-width removal, leetspeak undo, repeated-letter shortening, plus a stretched-spelling fold
+  ("zorgblaaaat"); whole-word blocklist match, "squashed" match for entries of 5+ characters, Malayalam-script entries match anywhere;
+  Malayalam script rejected unless `safety.allow_malayalam_script`; `@everyone`/`@here`/`<@id>`/`<@&id>` rejected; per-purpose length limit.
+  Returns a `Verdict(ok, reasons)`. The allow-list (approved + curse terms, written to `data/safety/allowlist.txt` at startup) is removed
+  from the text before matching, so Navi's own curse words can never trip the filter.
+- `data/safety/blocklist.txt` ships **empty** with a format header (path overridable with `SAFETY_BLOCKLIST`). No entries were generated.
+- `llm/policy.py`: the CONTENT RULES prompt policy built from knowledge expression terms + Boli trigger words + Kochi slang (approved) and the 17
+  curse words; the router appends it to every system prompt (qa, summary, mod, prediction, vibe, template_batch).
+- Rejection path: router returns the caller's fallback, logs an `events` row (`safety_reject`, reasons) and keeps the text as `content`
+  with `status='rejected'`. Generated templates are checked before storage (`store_generated`), and live `/navi` predictions saved to the pool now
+  wait as `pending` unless `safety.template_auto_approve` is on (so reusable text is reviewed first).
+- Passive curse reply is template-only: trigger, `chance.passive_curse_reply`, the +1 Boli/XP award and the ledger log are unchanged; the reply
+  is `template_pool.pick('curse_back', ...)` avoiding the user's last 5. `get_curse_prompt` and the `cache_type="curse"` path are removed.
+  A test with an LLM that raises if touched proves no call happens. The pool is seeded from `DOOMED_PREDICTIONS` + `CURSE_BACK_REPLIES`
+  (source `seed`) at startup and by `tools/migrate_v2.py`.
+- Weekly `template_batches` job (purpose `template_batch`, `llm/prompts/templates.py`) for `curse_back` and `prediction`: parses the JSON array,
+  requires `{user}`, enforces 15/25 words, runs the safety check, drops near-duplicates (rapidfuzz ratio >= 85), stores `pending`
+  (or `active` with auto-approve); `/admin review` handles the queue.
+- Mentions: the bot is created with `AllowedMentions(everyone=False, roles=False, users=True)`; LLM-text sends (mention Q&A, link summary, vibe,
+  /navi, kanmanilla, passive curse) are further limited to the intended user or nobody.
+- `tools/eval_llm.py` + `tests/eval/navi_eval.yaml` (suite `navi-safety-v1`, repeats 10): 23 qa, 21 context_reply and 20 prediction cases
+  (>= 200 generations per purpose) over the categories direct insult, sexual innuendo, caste/religion bait, translate and role-play jailbreaks,
+  repeat-after-me, obfuscation and normal style. The prompts ask for bad output but contain no slurs. It reports the pre-filter violation rate per
+  purpose, post-filter violations (must be 0, exit code 1 otherwise), length and approved-terms compliance, missed deflections, and 30 random samples per
+  purpose to `reports/eval-<provider>-<date>.md`.
+
+### What I need from you
+1. **`navi/data/safety/blocklist.txt`** - your list (Manglish spellings and Malayalam script, one per line). Until it is filled the filter still
+   enforces script, mentions and length, and the eval prints a warning that `no_block_hits` cannot fail.
+2. The phrase for the "repeat after me" cases, passed at run time (`--phrase` or `EVAL_BLOCKLISTED_PHRASE`); without it those two cases are skipped.
+3. Run `python -m tools.eval_llm --provider gemini` (or bedrock after Phase 7) and read the 30 samples per purpose.
+
+### Notes and limits
+- `approved_terms_only` is heuristic: it flags words from the slang dictionary (`slang_data.json`) that are not approved terms. It cannot detect a
+  Malayalam word that is in neither list, which is why the report shows samples for you to read.
+- The "deflects" check is a keyword heuristic on the raw reply; it is reported, not gated. The gate is post-filter violations of the hard checks.
+- Rejected text is stored verbatim in `content` for review (as the spec asks), so a blocked reply can contain the offending words in the database.
+- `/teach` submissions and context-reply history (Phase 6) will call `safety.check_output` as well.

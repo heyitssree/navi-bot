@@ -63,6 +63,17 @@ Presence intents in the Discord Developer Portal.
 | `PARTNER_BOT_API_KEY`, `API_SERVER_PORT` | Partner API bearer key and port |
 | `BOT_INTERNAL_SECRET` | Shared secret for `/internal/boli/award` |
 
+## Content safety
+
+- Every LLM request carries a content policy (no sexual, abusive or hateful language in any script; English plus an approved list of Manglish terms).
+- Every LLM reply goes through `navi/llm/safety.py` before it is sent: owner blocklist (`navi/data/safety/blocklist.txt`; obfuscated and
+  stretched spellings are caught), Malayalam script, mentions (`@everyone`, roles, `<@id>`) and length. A rejected reply becomes the feature's
+  fallback text, a `safety_reject` event, and a `rejected` row in `content` for the owner.
+- The passive curse reply never calls the LLM: it picks a reviewed template (`content` kind `curse_back`). Reusable text grows through a weekly
+  generator and waits in `/admin review` unless `safety.template_auto_approve` is on.
+- The bot sends with `AllowedMentions` that never allow `@everyone` or roles.
+- `python -m tools.eval_llm --provider gemini` runs the adversarial and style suite (`tests/eval/navi_eval.yaml`) and writes `reports/eval-*.md`.
+
 ## How AI errors are handled
 
 - Rate limited (429): that key cools down for the server's suggested delay (20 s if none). This never trips the circuit breaker.

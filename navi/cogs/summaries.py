@@ -1,6 +1,8 @@
 # navi/cogs/summaries.py - moved from bot.py (behaviour unchanged)
 from __future__ import annotations
 
+from navi.services.mentions import nobody, only_user
+
 import logging
 import random
 import re
@@ -226,7 +228,7 @@ class SummariesCog(commands.Cog):
             cache_type="qa",
         )
         poster, _ = _res.text, _res.from_cache
-        await interaction.followup.send(f"{poster}\n{user.mention}")
+        await interaction.followup.send(f"{poster}\n{user.mention}", allowed_mentions=only_user(user))
         logger.info("Kanmanilla posted for %s (last seen %d days ago)", user.display_name, days_ago)
     @commands.Cog.listener()
     async def on_raw_reaction_add(self, payload: discord.RawReactionActionEvent) -> None:
@@ -309,7 +311,7 @@ class SummariesCog(commands.Cog):
                 cache_type="qa",
             )
             summary, _ = _res.text, _res.from_cache
-            await message.reply(f"📰 **Link Summary:**\n{summary}")
+            await message.reply(f"📰 **Link Summary:**\n{summary}", allowed_mentions=nobody())
             logger.info("Link summary sent for %s", url)
 
         except Exception as exc:

@@ -197,7 +197,7 @@ async def test_disabled_router_uses_fallback():
 async def test_safety_rejection_uses_fallback(monkeypatch):
     from navi.llm import safety
 
-    monkeypatch.setattr(safety, "check_output", lambda text, purpose: (False, "blocked"))
+    monkeypatch.setattr(safety, "check_output", lambda text, purpose: safety.Verdict(False, ["blocklist"]))
     r, _ = make(free="bad words")
     res = await call(r)
     assert res.text == "FB" and res.outcome == "safety"

@@ -157,6 +157,9 @@ class LLMRouter:
         # Set by the app; called from the event loop with a short message for the owner.
         self.on_config_error: Callable[[str], None] | None = None
         self.on_event: Callable[[dict], None] | None = None
+        # Called with (request, rejected_text, reasons) when the safety filter rejects a reply.
+        self.on_reject: Callable[[LLMRequest, str, list[str]], None] | None = None
+        self.policy = ""     # content rules appended to every system prompt (navi.llm.policy.build_policy)
 
         self._window_start = time.monotonic()
         self._request_count = 0
@@ -327,6 +330,8 @@ class LLMRouter:
             return RouterResult(random.choice(pool).format(user=name or "friend"), True, "user_" + limited)
 
         req = self._tune(req)
+        if self.policy:
+            req = replace(req, system=req.system + self.policy)
         self._refresh_window()
         self._roll_day()
         cap = self._setting("ai.daily_call_cap", None)
@@ -372,13 +377,14 @@ class LLMRouter:
                 server_failure = True
                 continue
             if resp.text:
-                ok, reason = safety.check_output(resp.text, req.purpose)
+                verdict = safety.check_output(resp.text, req.purpose)
                 self.breaker.record_success()
                 self.active_key = key
                 self.calls[key] = self.calls.get(key, 0) + 1
-                if not ok:
-                    logger.warning("Reply rejected by safety filter (%s).", reason)
+                if not verdict.ok:
+                    logger.warning("Reply rejected by safety filter (%s).", ",".join(verdict.reasons))
                     self._emit(req, resp, outcome="safety")
+                    self._reject(req, resp.text, verdict.reasons)
                     return RouterResult(fallback, True, "safety", resp.provider, resp.model)
                 self._emit(req, resp, outcome="ok")
                 return RouterResult(resp.text, False, "ok", resp.provider, resp.model)
@@ -432,6 +438,14 @@ class LLMRouter:
             except Exception:
                 logger.exception("Owner alert callback failed.")
         self.breaker.trip()
+
+    def _reject(self, req: LLMRequest, text: str, reasons: list[str]) -> None:
+        if self.on_reject is None:
+            return
+        try:
+            self.on_reject(req, text, reasons)
+        except Exception:
+            logger.exception("on_reject hook failed.")
 
     def _emit(self, req: LLMRequest, resp: LLMResponse | None = None, *, outcome: str) -> None:
         if self.on_event is None:

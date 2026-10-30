@@ -7,4 +7,5 @@ beautifulsoup4
 fastapi
 uvicorn[standard]
 pydantic
-matplotlib
+matplotlibrapidfuzz
+pyyaml

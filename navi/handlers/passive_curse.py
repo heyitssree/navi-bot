@@ -1,4 +1,4 @@
-# navi/handlers/passive_curse.py - moved from bot.py on_message (behaviour unchanged)
+# navi/handlers/passive_curse.py - passive curse word reply: template-only, no LLM call (Phase 5)
 from __future__ import annotations
 
 import asyncio
@@ -7,53 +7,28 @@ import random
 
 import discord
 
-from navi.data.curse_data import contains_curse_word, get_random_curse_back, get_random_doomed_prediction
-from navi.data.messages import FALLBACK_MESSAGES
-from navi.db.repos.content import save_prediction
-from navi.llm.base import LLMRequest
-from navi.llm.prompts import get_curse_prompt, get_time_aware_system_prompt
+from navi.data.curse_data import contains_curse_word, get_random_doomed_prediction
+from navi.services.mentions import only_user
 from navi.services.points import award
-from navi.services.predictions import templatize
+from navi.services.template_pool import pick
 
 logger = logging.getLogger("navi.handlers.passive_curse")
 
 
 async def handle_passive_curse(ctx, message: discord.Message) -> bool:
-    """Passive curse word reply (+1 Boli, LLM line with fallback templates)."""
-    # ---- Passive curse word reply ----
+    """A curse-list word in any message: with chance.passive_curse_reply, +1 Boli/XP, log it, and answer with a
+    reviewed template (content kind 'curse_back'). Never calls the LLM."""
     curse_chance = ctx.settings.get("chance.passive_curse_reply")
-    _curse_matched, curse_used = contains_curse_word(message.content)
-    if ctx.settings.get("feature.passive_curse_replies") and _curse_matched and random.random() < curse_chance:
+    matched, curse_used = contains_curse_word(message.content)
+    if ctx.settings.get("feature.passive_curse_replies") and matched and random.random() < curse_chance:
         username = message.author.display_name
         user_id = message.author.id
         curse_used = curse_used or "that"
 
         award(ctx.db, user_id, 1, 1, reason="curse_word_said", detail=curse_used, log_only=True)  # +1 Boli, +1 XP
 
-        system_prompt = get_time_aware_system_prompt(ctx.db, username=username)
-        user_prompt = get_curse_prompt(username, curse_used)
-
+        reply = pick(ctx, "curse_back", user_id, username, curse_used) or get_random_doomed_prediction(username)
         async with message.channel.typing():
             await asyncio.sleep(random.uniform(1.0, 2.0))
-            _res = await ctx.llm.generate(
-                LLMRequest(purpose="qa", system=system_prompt, prompt=user_prompt),
-                fallback=random.choice(FALLBACK_MESSAGES),
-                name=username,
-                cache_type="curse",
-                curse_used=curse_used,
-            )
-            reply, from_cache = _res.text, _res.from_cache
-
-        if reply in FALLBACK_MESSAGES:
-            reply = (
-                get_random_doomed_prediction(username)
-                if random.random() < 0.5
-                else get_random_curse_back(username)
-            )
-        elif not from_cache:
-            template = templatize(reply, username, curse_used)
-            save_prediction(ctx.db, "curse", template, user_id=message.author.id)
-
-        await message.reply(reply)
+        await message.reply(reply, allowed_mentions=only_user(message.author))
     return False
-

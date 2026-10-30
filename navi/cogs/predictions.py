@@ -1,6 +1,8 @@
 # navi/cogs/predictions.py - moved from bot.py (behaviour unchanged)
 from __future__ import annotations
 
+from navi.services.mentions import only_user
+
 import asyncio
 import logging
 import random
@@ -82,7 +84,7 @@ class PredictionsCog(commands.Cog):
 
         prediction = await get_navi_prediction(ctx, target.id, display_name, usage_count=usage_count)
         final_reply = prediction.replace(display_name, mention_str)
-        await interaction.followup.send(final_reply)
+        await interaction.followup.send(final_reply, allowed_mentions=only_user(target))
 
         # +2 Boli Points + XP for using /navi (only on first fresh call)
         if usage_count == 1:

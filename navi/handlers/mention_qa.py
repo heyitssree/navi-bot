@@ -1,6 +1,8 @@
 # navi/handlers/mention_qa.py - moved from bot.py on_message (behaviour unchanged)
 from __future__ import annotations
 
+from navi.services.mentions import only_user
+
 import asyncio
 import logging
 import random
@@ -53,7 +55,7 @@ async def handle_mention_qa(ctx, message: discord.Message) -> bool:
             else:
                 reply = await _do_qa_call()
 
-            await message.reply(reply)
+            await message.reply(reply, allowed_mentions=only_user(message.author))
         # Always return after a mention — never double-trigger slang detection
         return True
     return False

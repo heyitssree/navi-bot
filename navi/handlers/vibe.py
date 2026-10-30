@@ -1,6 +1,8 @@
 # navi/handlers/vibe.py - moved from bot.py (behaviour unchanged)
 from __future__ import annotations
 
+from navi.services.mentions import nobody
+
 import logging
 from collections import deque
 from datetime import datetime, timezone
@@ -70,7 +72,7 @@ async def _check_vibe(ctx, message: discord.Message) -> None:
         cache_type="qa",
     )
     reply, _ = _res.text, _res.from_cache
-    await message.channel.send(reply)
+    await message.channel.send(reply, allowed_mentions=nobody())
     logger.info("Vibe check fired in #%s", channel_name)
 
 

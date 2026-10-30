@@ -25,6 +25,7 @@ from navi.db.repos import games as games_repo
 from navi.db.repos import points as points_repo
 from navi.db.repos import users as users_repo
 from navi.db.repos.privacy import connect_privacy
+from navi.services.template_pool import seed_templates
 from navi.settings.registry import BY_LEGACY, INTENTIONALLY_DROPPED, RESET_ON_MIGRATE
 
 OPENING_TS = "1970-01-01 00:00:00"
@@ -92,6 +93,8 @@ def migrate_database(src: sqlite3.Connection, dst: sqlite3.Connection, report: R
     _games(src, dst, report)
     _history_events(src, dst, report)
     _content_knowledge(src, dst, report)
+    seeded = seed_templates(dst)     # reviewed curse_back pool for the template-only passive curse reply
+    report.notes.append(f"seeded {seeded} curse_back templates")
     _settings(src, dst, report)
     dst.commit()
 
@@ -398,7 +401,8 @@ def verify(src: sqlite3.Connection, dst: sqlite3.Connection) -> list[str]:
     want = count(src, "command_events") + count(src, "session_events") + count(src, "api_call_log")
     check(count(dst, "events") == want, f"events {count(dst, 'events')} != {want}")
     max_content = count(src, "predictions_cache") + count(src, "gemini_score_comments") + count(src, "movie_dialogues")
-    check(count(dst, "content") <= max_content and (count(dst, "content") > 0 or max_content == 0), f"content {count(dst, 'content')} vs {max_content}")
+    seeds = dst.execute("SELECT COUNT(*) FROM content WHERE source = 'seed'").fetchone()[0]
+    check(count(dst, "content") - seeds <= max_content, f"content {count(dst, 'content') - seeds} vs {max_content}")
     # curse / bless history rows
     want = count(src, "curse_logs")
     got = dst.execute("SELECT COUNT(*) FROM points_ledger WHERE reason IN ('curse_received','curse_backfire','curse_self')").fetchone()[0]

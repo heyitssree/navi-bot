@@ -32,6 +32,7 @@ class RuntimeState:
     slang_cooldown: dict[int, datetime] = field(default_factory=dict)
     summarized_messages: set[int] = field(default_factory=set)
     temp_vc_registry: dict[int, asyncio.Task] = field(default_factory=dict)
+    recent_templates: dict[tuple[int, str], deque] = field(default_factory=dict)   # (user, kind) -> last 5 template ids
 
 
 @dataclass

@@ -71,8 +71,11 @@ def test_other_tables(migrated):
     assert new.execute("SELECT location, storage_type, animated, discord_id FROM media WHERE shortcut='dance'").fetchone() == ("", "app_emoji", 1, "123")
     assert dict(new.execute("SELECT counter, value FROM daily_counters WHERE user_id=1")) == {
         "cosmic_action": 7, "refill": 1, "game:flip": 3, "game:slots": 2, "llm_game:navi_challenge": 2}
-    kinds = dict(new.execute("SELECT kind, COUNT(*) FROM content GROUP BY kind"))
+    kinds = dict(new.execute("SELECT kind, COUNT(*) FROM content WHERE source = 'migrated' GROUP BY kind"))
     assert kinds == {"prediction": 2, "curse_back": 1, "score_comment": 1, "movie_dialogue": 1}
+    from navi.data.curse_data import CURSE_BACK_REPLIES, DOOMED_PREDICTIONS
+    assert new.execute("SELECT COUNT(*) FROM content WHERE source='seed' AND kind='curse_back' AND status='active'").fetchone()[0] \
+        == len(set(DOOMED_PREDICTIONS) | set(CURSE_BACK_REPLIES))
     assert new.execute("SELECT key FROM content WHERE kind='score_comment'").fetchone()[0] == "navi_challenge:70"
     assert dict(new.execute("SELECT kind, COUNT(*) FROM events GROUP BY kind")) == {"command": 1, "session": 1, "llm_call": 1}
 
