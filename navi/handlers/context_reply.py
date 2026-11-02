@@ -67,7 +67,7 @@ async def build_history(ctx, message: discord.Message) -> list[tuple[str, str]]:
         else:
             continue                                   # other people's messages never enter the prompt
         text = _MENTION.sub("", parent.content).strip()
-        if not text or not safety.check_output(text, "context_reply").ok:
+        if not text or not safety.check_input(text).ok:
             continue
         if chars + len(text) > MAX_CHARS:
             break

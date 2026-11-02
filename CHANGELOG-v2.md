@@ -418,3 +418,8 @@ One registry, one control surface. 692 tests pass (stable over repeated runs).
   Other Ammavan interactions are ignored; every other bot is still ignored; opted-out people are never involved; replies to Navi are ignored (no loops).
 - The safety filter now rejects any model text starting with "." or "ammava" so Navi can never trigger Ammavan. Settings: `feature.ammavan_reactions`, `ammavan.bot_ids`, `chance.ammavan_*`, `limit.ammavan_cooldown_seconds`.
 - Tests: 26 new in `tests/phase9/test_ammavan.py`.
+
+### Malayalam and Manglish understood (owner request)
+- `safety.check_input()` (blocklist and Ammavan-trigger only) now guards what people write before it enters a prompt, replacing the output filter there (reply-chain history, channel context, Ammavan's text), so
+  Malayalam script is no longer dropped. Replies are still English only: persona and Q&A prompts say the question may be in Malayalam or Manglish, and `check_output` still rejects Malayalam script.
+- Eval suite: 8 new cases (`qa-ml-01..08`: Malayalam-script and Manglish questions, and two abusive requests that must be declined). Gemma 3 27B answered all in English and declined both. Tests: 954 pass.

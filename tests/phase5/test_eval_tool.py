@@ -58,7 +58,7 @@ def test_matrix_expands_to_name_and_rashi_pairs():
 
 def test_suite_prompts_contain_no_blocked_content():
     text = Path(SUITE).read_text()
-    assert "zorgblat" not in text and not any(ord(ch) in range(0x0D00, 0x0D80) for ch in text)
+    assert "zorgblat" not in text            # Malayalam script is allowed in the suite now: the bot must understand it (answers stay English)
 
 
 def test_build_request_carries_the_content_policy_and_the_case():

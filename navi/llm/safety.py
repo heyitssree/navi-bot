@@ -121,6 +121,13 @@ class SafetyFilter:
         return Verdict(ok=not reasons, reasons=reasons)
 
 
+    def check_input(self, text: str) -> Verdict:
+        """Check what a person wrote before it may enter a prompt. Malayalam script is fine here (Navi understands it); the
+        blocklist still applies, and texts that would trigger the Ammavan bot are left out."""
+        reasons = (["blocklist"] if self.blocklist_hits(text) else []) + (["bot_trigger"] if BOT_TRIGGER.match(text) else [])
+        return Verdict(ok=not reasons, reasons=reasons)
+
+
 _filter = SafetyFilter()
 
 
@@ -138,3 +145,8 @@ def configure(*, settings=None, blocklist: list[str] | None = None, allowed_term
 def check_output(text: str, purpose: str = "") -> Verdict:
     """Check a piece of text. The result is truthy when it is safe to use; .reasons says why not."""
     return _filter.check(text, purpose)
+
+
+def check_input(text: str) -> Verdict:
+    """Input counterpart of check_output: blocklist and Ammavan-trigger only, so Malayalam and Manglish questions are understood."""
+    return _filter.check_input(text)

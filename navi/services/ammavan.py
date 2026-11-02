@@ -15,6 +15,7 @@ import re
 import time
 
 from navi.data.curse_data import contains_curse_word, get_random_doomed_prediction
+from navi.llm import safety
 from navi.llm.base import LLMRequest
 from navi.llm.prompts import get_ammavan_witty_prompt, get_time_aware_system_prompt
 from navi.services.mentions import nobody
@@ -117,7 +118,7 @@ def curse_back_text(ctx, message) -> str | None:
 
 async def witty_text(ctx, message) -> str | None:
     said = _MENTION.sub("", message.content or "").strip()[:300]
-    if not said:
+    if not said or not safety.check_input(said).ok:
         return None
     res = await ctx.llm.generate(
         LLMRequest(purpose="qa", system=get_time_aware_system_prompt(ctx.db, username=None), prompt=get_ammavan_witty_prompt(said), max_tokens=60),

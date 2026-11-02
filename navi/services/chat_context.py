@@ -33,9 +33,9 @@ async def build(ctx, message: discord.Message) -> list[tuple[str, str]]:
                 continue
             text = _MENTION.sub("", m.content or "").strip()[:LINE_CHARS]
             name = "Navi" if is_navi else m.author.display_name
-            if not text or not safety.check_output(text, "context_reply").ok:
+            if not text or not safety.check_input(text).ok:
                 continue
-            if not safety.check_output(name, "context_reply").ok:
+            if not safety.check_input(name).ok:
                 name = "Someone"
             if chars + len(text) > TOTAL_CHARS:
                 break

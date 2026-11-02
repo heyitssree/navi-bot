@@ -36,13 +36,13 @@ async def test_returns_the_last_messages_oldest_first_and_asks_for_ten(ctx):
     assert gen.limit == 10
 
 
-async def test_left_out_opted_out_people_other_bots_empty_and_unsafe_lines(ctx):
+async def test_left_out_opted_out_people_other_bots_empty_and_trigger_lines(ctx):
     ctx.privacy.is_opted_out = lambda uid: uid == 4
     ctx.settings.set("ammavan.bot_ids", [900])
     q = make_message(FakeUser(1, "asha"), "q")
     hist(q.channel, said(FakeUser(2, "ben"), "keep me <@5> @everyone"), said(FakeUser(4, "gone"), "private words"), said(FakeUser(900, "Ammavan", True), "poda"),
          said(FakeUser(6, "x"), "   "), said(FakeUser(7, "dot"), ". sneaky"), said(FakeUser(8, "mal"), "ഇത് മലയാളം"))
-    assert await chat_context.build(ctx, q) == [("ben", "keep me")]
+    assert await chat_context.build(ctx, q) == [("ben", "keep me"), ("mal", "ഇത് മലയാളം")]          # Malayalam script is understood, not dropped
 
 
 async def test_total_size_is_capped_and_a_bad_name_is_replaced(ctx):
@@ -85,3 +85,18 @@ async def test_without_any_chat_a_question_behaves_as_before(ctx):
     hist(q.channel)                                                                # empty channel
     await handle_mention_qa(ctx, q)
     assert q.reply.await_count == 1 and "Recent chat" not in (ctx.llm.requests[0]["req"].prompt if ctx.llm.requests else "")
+
+
+async def test_malayalam_and_manglish_questions_are_understood_but_answered_in_english(ctx):
+    for question in ("ടെക്നോപാർക്ക് എവിടെയാണ്?", "evide aanu Ponmudi?"):
+        ctx.llm.requests.clear()
+        q = make_message(FakeUser(1, "asha"), f"<@{BOT_ID}> {question}")
+        hist(q.channel)
+        assert await handle_mention_qa(ctx, q) is True
+        req = ctx.llm.requests[0]["req"]
+        assert question in req.prompt and "Malayalam script or Manglish" in req.prompt and "understand it, then answer in English only" in req.prompt
+        assert "fully understand Malayalam" in req.system and "always in English only" in req.system
+    from navi.llm import safety
+
+    assert safety.check_output("ടെക്നോപാർക്ക് കഴക്കൂട്ടത്താണ്", "qa").reasons == ["malayalam_script"]      # a Malayalam reply is still rejected
+    assert safety.check_input("ടെക്നോപാർക്ക് എവിടെയാണ്?").ok
