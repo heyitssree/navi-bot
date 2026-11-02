@@ -38,8 +38,8 @@ configured bot-commands channel Navi follows reply chains (`feature.context_repl
 back when it proxy-curses (`chance.ammavan_curse_back`, 5%) and replies to its AI answers (`chance.ammavan_witty_reply`, 30%; Ammavan's text is probably Manglish, and Navi answers in English), at most once a minute per channel. Everything else Ammavan does is left
 alone, every other bot is ignored, and Navi never starts a message with "." or "ammava" (so it cannot trigger Ammavan) or answers a reply to itself (no bot loops).
 
-**Chat redirect** (`feature.chat_redirect`, needs `channel.bot_commands`): outside the bot-commands channel a person can talk to Navi (`@Navi` questions) 4 times in 5 minutes. The next try gets one note
-pointing to the bot-commands channel, and Navi then ignores that person's AI conversation for 5 minutes. In bot-commands there is no limit. Only AI conversation is affected; commands, games and
+**Chat redirect** (`feature.chat_redirect`, needs `channel.bot_commands`): outside the free channels a person can talk to Navi (`@Navi` questions) 4 times in 5 minutes. The next try gets one note
+pointing to the bot-commands channel, and Navi then ignores that person's AI conversation for 5 minutes. In the free channels there is no limit: the bot-commands channel, plus any channel named in `channel.free_chat_names` (default `off-topic`), where reply-chain context replies also work. Only AI conversation is affected; commands, games and
 every other feature are unchanged. Numbers: `chat.redirect_calls`, `chat.redirect_window_seconds`, `chat.redirect_cooldown_seconds`.
 
 **Admin** (`/admin ...`, owner or the `system.panel_role` role): `panel` (browse and edit every setting), `set` / `get` / `reset`, `killswitch`, `status`,

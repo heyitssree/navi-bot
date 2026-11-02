@@ -163,6 +163,8 @@ SETTINGS: tuple[Setting, ...] = (
     # ---- Channels
     Setting("channel.bot_commands", "channel", None, "Channels", "Bot-commands channel",
             "Context-aware replies only happen here, and AI conversation is unlimited here (elsewhere it is rate-limited: see chat.redirect_*)."),
+    Setting("channel.free_chat_names", "str", "off-topic", "Channels", "Free-chat channel names",
+            "Comma-separated channel NAMES (besides bot-commands) where Navi chats freely: no chat redirect, and context replies work. Empty = none."),
     Setting("channel.mod_alerts", "channel", None, "Channels", "Mod alerts channel",
             "Strike escalations go here. Empty = the channel named by MOD_CHANNEL_NAME."),
     # ---- Privacy

@@ -98,3 +98,41 @@ async def test_other_features_are_untouched_during_the_quiet_period(ctx):
     plain = make_message(asha, "navi chunk")                                # not a mention: the handler ignores it, so the pipeline continues
     assert await handle_mention_qa(ctx, plain) is False and plain.reply.await_count == 0
     assert isinstance(ctx.bot.application_info, AsyncMock)
+
+
+def test_off_topic_is_a_free_channel_by_name_and_does_not_use_up_the_allowance(ctx):
+    assert ctx.settings.get("channel.free_chat_names") == "off-topic"
+    assert all(ct.check(ctx, 1, 55, 1000 + i, channel_name="off-topic") == ct.ALLOW for i in range(30))
+    assert all(ct.check(ctx, 1, 55, 1100 + i, channel_name="Off-Topic") == ct.ALLOW for i in range(5))                 # case-insensitive
+    assert [ct.check(ctx, 1, GENERAL, 1200 + i, channel_name="general") for i in range(5)] == [ct.ALLOW] * 4 + [ct.REDIRECT]
+    for i in range(6):
+        ct.check(ctx, 2, GENERAL, 1300 + i, channel_name="general")
+    assert ct.check(ctx, 2, 55, 1310, channel_name="off-topic") == ct.ALLOW                                              # even during the quiet period
+
+
+def test_free_names_are_a_setting(ctx):
+    ctx.settings.set("channel.free_chat_names", "off-topic, #memes")
+    assert ct.free_names(ctx) == {"off-topic", "memes"}
+    ctx.settings.set("channel.free_chat_names", "")
+    assert [ct.check(ctx, 1, GENERAL, 1000 + i, channel_name="off-topic") for i in range(5)] == [ct.ALLOW] * 4 + [ct.REDIRECT]
+
+
+async def test_handler_in_off_topic_never_limits_and_context_replies_work_there(ctx):
+    from navi.handlers.context_reply import in_context_channel
+
+    asha = FakeUser(1, "asha")
+    for n in range(8):
+        msg = make_message(asha, f"<@{BOT_ID}> question {n}?")
+        msg.channel.id, msg.channel.name = 55, "off-topic"
+        await handle_mention_qa(ctx, msg)
+        assert msg.reply.await_count == 1 and "<#" not in msg.reply.await_args.args[0]
+    ctx.settings.set("feature.context_replies", True)
+    here = make_message(asha, "hi")
+    here.channel.id, here.channel.name = 55, "off-topic"
+    other = make_message(asha, "hi")
+    other.channel.id, other.channel.name = 56, "general"
+    assert in_context_channel(ctx, here) is True and in_context_channel(ctx, other) is False
+
+
+def test_redirect_note_also_mentions_off_topic(ctx):
+    assert "#off-topic" in ct.redirect_text(ctx, FakeUser(1, "asha"))

@@ -27,7 +27,7 @@ async def handle_mention_qa(ctx, message: discord.Message) -> bool:
         if not ctx.settings.get("feature.mention_qa"):
             return True   # switched off: stay silent (and keep the message away from the other handlers)
         if content_without_ping and not contains_curse_word(message.content)[0]:
-            verdict = chat_throttle.check(ctx, message.author.id, message.channel.id)
+            verdict = chat_throttle.check(ctx, message.author.id, message.channel.id, channel_name=getattr(message.channel, "name", "") or "")
             if verdict == chat_throttle.SILENT:
                 return True            # in the quiet period: no AI conversation with this person outside bot-commands
             if verdict == chat_throttle.REDIRECT:

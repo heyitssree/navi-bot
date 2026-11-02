@@ -432,3 +432,6 @@ One registry, one control surface. 692 tests pass (stable over repeated runs).
 
 ### Context depth
 - `ai.channel_context_messages` default 10 -> 20 (max 25); the context character cap 1,500 -> 3,000 so twenty lines fit.
+
+### #off-topic is a free-chat channel (owner request)
+- New setting `channel.free_chat_names` (comma-separated channel names, default `off-topic`, case-insensitive). Those channels behave like bot-commands: no chat redirect or quiet period, and context replies work there. The redirect note mentions them. Needs no channel ID.

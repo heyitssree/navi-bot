@@ -1,8 +1,8 @@
 # navi/services/chat_throttle.py - keep AI conversation out of the general channels (mention Q&A only)
 #
-# Outside the bot-commands channel a person may talk to Navi `chat.redirect_calls` times per `chat.redirect_window_seconds` (default 4 in 5 minutes).
+# Outside the free channels (the bot-commands channel, plus any named in channel.free_chat_names, default off-topic) a person may talk to Navi `chat.redirect_calls` times per `chat.redirect_window_seconds` (default 4 in 5 minutes).
 # The next attempt gets ONE in-character note pointing at the bot-commands channel, and Navi then ignores that person's AI conversation for
-# `chat.redirect_cooldown_seconds` (default 5 minutes). In the bot-commands channel there is no limit. Only AI conversation is affected: commands,
+# `chat.redirect_cooldown_seconds` (default 5 minutes). In the free channels there is no limit. Only AI conversation is affected: commands,
 # games, shortcuts and every other feature work as before. Needs channel.bot_commands to be set; without it there is nowhere to send people, so nothing is throttled.
 from __future__ import annotations
 
@@ -24,11 +24,22 @@ def free_channel_id(ctx) -> int | None:
     return ctx.settings.get("channel.bot_commands") or None
 
 
-def check(ctx, user_id: int, channel_id: int, now: float | None = None) -> str:
+def free_names(ctx) -> set[str]:
+    """Channel names (besides bot-commands) where Navi chats freely, e.g. off-topic."""
+    return {n.strip().lstrip("#").lower() for n in str(ctx.settings.get("channel.free_chat_names") or "").split(",") if n.strip()}
+
+
+def is_free_channel(ctx, channel) -> bool:
+    """True for the bot-commands channel (by ID) and for any channel named in channel.free_chat_names."""
+    free = free_channel_id(ctx)
+    return bool((free and channel.id == free) or str(getattr(channel, "name", "") or "").lower() in free_names(ctx))
+
+
+def check(ctx, user_id: int, channel_id: int, now: float | None = None, channel_name: str = "") -> str:
     """Decide what to do with one AI-conversation attempt: ALLOW it, send the REDIRECT note (once), or stay SILENT."""
     s = ctx.settings
     free = free_channel_id(ctx)
-    if not s.get("feature.chat_redirect") or not free or channel_id == free:
+    if not s.get("feature.chat_redirect") or not free or channel_id == free or channel_name.lower() in free_names(ctx):
         return ALLOW
     now = time.monotonic() if now is None else now
     state = ctx.state
@@ -51,4 +62,6 @@ def check(ctx, user_id: int, channel_id: int, now: float | None = None) -> str:
 
 def redirect_text(ctx, user) -> str:
     minutes = max(1, round(float(ctx.settings.get("chat.redirect_cooldown_seconds")) / 60))
-    return random.choice(REDIRECT_MESSAGES).format(user=user.display_name, channel=f"<#{free_channel_id(ctx)}>", minutes=minutes)
+    text = random.choice(REDIRECT_MESSAGES).format(user=user.display_name, channel=f"<#{free_channel_id(ctx)}>", minutes=minutes)
+    names = sorted(free_names(ctx))
+    return text + (f" (Or {', '.join('#' + n for n in names)}.)" if names else "")

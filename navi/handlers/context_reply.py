@@ -16,7 +16,7 @@ import discord
 from navi.data.curse_data import contains_curse_word
 from navi.llm import safety
 from navi.services.mentions import only_user
-from navi.services import chat_context
+from navi.services import chat_context, chat_throttle
 from navi.services.qa import answer_question, limit_notice_due
 
 logger = logging.getLogger("navi.handlers.context_reply")
@@ -27,8 +27,7 @@ _MENTION = re.compile(r"<@[!&]?\d+>|<#\d+>|@everyone|@here")
 
 
 def in_context_channel(ctx, message: discord.Message) -> bool:
-    channel_id = ctx.settings.get("channel.bot_commands")
-    return bool(ctx.settings.get("feature.context_replies") and channel_id and message.channel.id == channel_id)
+    return bool(ctx.settings.get("feature.context_replies") and chat_throttle.is_free_channel(ctx, message.channel))
 
 
 async def _parent(message):
