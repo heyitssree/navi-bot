@@ -100,5 +100,9 @@ async def on_message(ctx, message: discord.Message) -> None:
             return
 
     for handler in HANDLERS:
-        if await handler(ctx, message):
+        try:
+            if await handler(ctx, message):
+                return
+        except discord.Forbidden:                     # e.g. a mention in a channel Navi cannot see or write to: nothing to do
+            logger.warning("Missing access in channel %s; skipped %s.", getattr(message.channel, "id", "?"), handler.__name__)
             return

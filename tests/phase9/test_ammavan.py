@@ -195,3 +195,19 @@ def test_static_navi_texts_never_start_with_a_dot_or_ammava():
     pools = [FALLBACK_MESSAGES, curse_data.CURSE_BACK_REPLIES, curse_data.DOOMED_PREDICTIONS, curse_data.KOCHI_SLANG_RESPONSES]
     for text in (t for pool in pools for t in pool):
         assert not text.lstrip().startswith(".") and not text.lstrip().lower().startswith("ammava"), text
+
+
+async def test_missing_channel_access_is_logged_not_raised(ctx):
+    import discord
+
+    async def forbidden(*a, **k):
+        raise discord.Forbidden(type("R", (), {"status": 403, "reason": "Forbidden"})(), "Missing Access")
+
+    m = msg(ASHA, "hello")
+    m.channel.typing = forbidden
+    original = pipeline.HANDLERS[:]
+    pipeline.HANDLERS[:] = [forbidden]
+    try:
+        await pipeline.on_message(ctx, m)                                          # must not raise
+    finally:
+        pipeline.HANDLERS[:] = original
