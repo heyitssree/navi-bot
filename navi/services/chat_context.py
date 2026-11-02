@@ -2,7 +2,7 @@
 #
 # Same protections as the reply-chain context: opted-out people and every bot except Navi are left out, mentions and links to people are scrubbed,
 # every line (and every name) goes through the safety filter, and the total is capped. Chat lines are untrusted text: the prompt tells the model
-# to treat them as quotes, never as instructions. Needs `ai.channel_context_messages` > 0 (default 10).
+# to treat them as quotes, never as instructions. Needs `ai.channel_context_messages` > 0 (default 20).
 from __future__ import annotations
 
 import logging
@@ -15,7 +15,7 @@ from navi.llm import safety
 logger = logging.getLogger("navi.services.chat_context")
 
 LINE_CHARS = 300
-TOTAL_CHARS = 1500
+TOTAL_CHARS = 3000
 _MENTION = re.compile(r"<@[!&]?\d+>|<#\d+>|@everyone|@here")
 
 

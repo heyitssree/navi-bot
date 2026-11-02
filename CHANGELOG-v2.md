@@ -429,3 +429,6 @@ One registry, one control surface. 692 tests pass (stable over repeated runs).
   sentences, never name-calling, never real people or politics. Safety eval on Gemma 3 27B: 0 post-filter violations.
 - `chance.ammavan_witty_reply` default 0.03 -> 0.30. The reply now sees what the person asked Ammavan and what Ammavan answered (both may be Manglish or Malayalam), replies in English, and may use up to 90 tokens.
   Curse-back stays at 5%; the one-per-channel-per-minute gap and all no-loop guards are unchanged.
+
+### Context depth
+- `ai.channel_context_messages` default 10 -> 20 (max 25); the context character cap 1,500 -> 3,000 so twenty lines fit.

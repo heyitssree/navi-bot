@@ -33,7 +33,7 @@ async def test_returns_the_last_messages_oldest_first_and_asks_for_ten(ctx):
     q = make_message(FakeUser(1, "asha"), "q")
     gen = hist(q.channel, said(FakeUser(2, "ben"), "traffic is mad today"), said(FakeUser(3, "chitra"), "kowdiar again?"), said(NAVI, "stuck, are we"))
     assert await chat_context.build(ctx, q) == [("ben", "traffic is mad today"), ("chitra", "kowdiar again?"), ("Navi", "stuck, are we")]
-    assert gen.limit == 10
+    assert gen.limit == 20
 
 
 async def test_left_out_opted_out_people_other_bots_empty_and_trigger_lines(ctx):
@@ -47,7 +47,7 @@ async def test_left_out_opted_out_people_other_bots_empty_and_trigger_lines(ctx)
 
 async def test_total_size_is_capped_and_a_bad_name_is_replaced(ctx):
     q = make_message(FakeUser(1, "asha"), "q")
-    hist(q.channel, *[said(FakeUser(i, f"u{i}"), "x" * 290) for i in range(2, 12)], said(FakeUser(20, ". bad"), "hello"))
+    hist(q.channel, *[said(FakeUser(i, f"u{i}"), "x" * 290) for i in range(2, 22)], said(FakeUser(20, ". bad"), "hello"))
     out = await chat_context.build(ctx, q)
     assert sum(len(t) for _, t in out) <= chat_context.TOTAL_CHARS and ("Someone", "hello") in out
 
