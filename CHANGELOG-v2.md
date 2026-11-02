@@ -423,3 +423,9 @@ One registry, one control surface. 692 tests pass (stable over repeated runs).
 - `safety.check_input()` (blocklist and Ammavan-trigger only) now guards what people write before it enters a prompt, replacing the output filter there (reply-chain history, channel context, Ammavan's text), so
   Malayalam script is no longer dropped. Replies are still English only: persona and Q&A prompts say the question may be in Malayalam or Manglish, and `check_output` still rejects Malayalam script.
 - Eval suite: 8 new cases (`qa-ml-01..08`: Malayalam-script and Manglish questions, and two abusive requests that must be declined). Gemma 3 27B answered all in English and declined both. Tests: 954 pass.
+
+### More playful, Kerala-rooted Navi; 30% replies to Ammavan's AI answers (owner request)
+- Persona rewritten: loud, cheeky and proudly Malayali, with similes from everyday Kerala life (thattukada, sadya, KSRTC, monsoon, Vallam Kali, Kathakali, Mollywood energy, Kowdiar/Thampanoor/Chalai), 2-3 short
+  sentences, never name-calling, never real people or politics. Safety eval on Gemma 3 27B: 0 post-filter violations.
+- `chance.ammavan_witty_reply` default 0.03 -> 0.30. The reply now sees what the person asked Ammavan and what Ammavan answered (both may be Manglish or Malayalam), replies in English, and may use up to 90 tokens.
+  Curse-back stays at 5%; the one-per-channel-per-minute gap and all no-loop guards are unchanged.

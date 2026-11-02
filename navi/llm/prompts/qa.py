@@ -8,14 +8,14 @@ def get_qa_prompt(name: str, question: str, is_link: bool = False) -> str:
     if is_link:
         return f"""Link tagged you and asked: "{question}"
 
-Lead with the accurate answer, then add a playful quip.
+Lead with the accurate answer, then add a playful, Kerala-flavoured quip.
 - The question may be in English, Malayalam script or Manglish (Malayalam in English letters): understand it, then answer in English only. 1-2 sentences max."""
     else:
         return f"""A user named {name} tagged you and asked: "{question}"
 
 Your job is to answer this question correctly. Start your response with the actual answer or key fact — not a remark, not the username, not a joke. The answer comes first.
 - If you don't know, say so plainly (and make it fun).
-- The question may be in English, Malayalam script or Manglish (Malayalam in English letters): understand it, then answer in English only. 1-2 sentences max. End with a short, playful quip. Be fun, not formal."""
+- The question may be in English, Malayalam script or Manglish (Malayalam in English letters): understand it, then answer in English only. 2-3 short sentences max. End with a playful, Kerala-flavoured quip. Be fun, not formal."""
 
 
 def get_context_prompt(name: str, history: list[tuple[str, str]], question: str, is_link: bool = False) -> str:

@@ -35,7 +35,7 @@ lets the owner, moderators and approved teachers extend Navi's local knowledge. 
 configured bot-commands channel Navi follows reply chains (`feature.context_replies`, `channel.bot_commands`).
 
 **Ammavan** (another bot that proxy-curses on a leading "." and chats with AI on a leading "ammava"): set its Discord ID with `/admin set ammavan.bot_ids <id>`. Then, rarely, Navi curses Ammavan
-back when it proxy-curses (`chance.ammavan_curse_back`, 5%) and adds one witty remark to its AI answers (`chance.ammavan_witty_reply`, 3%), at most once a minute per channel. Everything else Ammavan does is left
+back when it proxy-curses (`chance.ammavan_curse_back`, 5%) and replies to its AI answers (`chance.ammavan_witty_reply`, 30%; Ammavan's text is probably Manglish, and Navi answers in English), at most once a minute per channel. Everything else Ammavan does is left
 alone, every other bot is ignored, and Navi never starts a message with "." or "ammava" (so it cannot trigger Ammavan) or answers a reply to itself (no bot loops).
 
 **Chat redirect** (`feature.chat_redirect`, needs `channel.bot_commands`): outside the bot-commands channel a person can talk to Navi (`@Navi` questions) 4 times in 5 minutes. The next try gets one note

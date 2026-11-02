@@ -3,7 +3,7 @@
 # Ammavan curses on someone's behalf when a text starts with "." (it swaps the dot for a curse and posts the whole text), and chats with AI
 # when a text starts with the lower-case string "ammava". Navi only ever does two things, each rare and per-channel rate-limited:
 #   * when Ammavan proxy-curses: curse Ammavan back with a reviewed template (chance.ammavan_curse_back, default 5%)
-#   * when Ammavan answers an AI chat: one short witty remark (chance.ammavan_witty_reply, default 3%)
+#   * when Ammavan answers an AI chat: a short playful reply in English (chance.ammavan_witty_reply, default 30%)
 # Everything else Ammavan does is ignored. Every other bot is ignored as before: the pipeline drops bot messages, and only the IDs in
 # ammavan.bot_ids reach this module. Navi never replies in a way that could trigger Ammavan (no leading "." or "ammava"), never answers a
 # message that is itself a reply to Navi (no bot-to-bot loops), and never reacts when an opted-out user is involved.
@@ -55,7 +55,7 @@ def track_human(ctx, message, now: float | None = None) -> None:
     if content.startswith("."):
         ctx.state.ammavan_dot[message.channel.id] = (message.author.id, content[1:].strip(), now)
     elif content.startswith(AI_PREFIX):
-        ctx.state.ammavan_ai[message.channel.id] = (message.id, message.author.id, now)
+        ctx.state.ammavan_ai[message.channel.id] = (message.id, message.author.id, now, _MENTION.sub("", content[len(AI_PREFIX):]).strip()[:200])
 
 
 def classify(ctx, message, now: float) -> tuple[str | None, int | None]:
@@ -120,8 +120,10 @@ async def witty_text(ctx, message) -> str | None:
     said = _MENTION.sub("", message.content or "").strip()[:300]
     if not said or not safety.check_input(said).ok:
         return None
+    trigger = ctx.state.ammavan_ai.get(message.channel.id)
+    asked = trigger[3] if trigger and safety.check_input(trigger[3]).ok else ""
     res = await ctx.llm.generate(
-        LLMRequest(purpose="qa", system=get_time_aware_system_prompt(ctx.db, username=None), prompt=get_ammavan_witty_prompt(said), max_tokens=60),
+        LLMRequest(purpose="qa", system=get_time_aware_system_prompt(ctx.db, username=None), prompt=get_ammavan_witty_prompt(said, asked), max_tokens=90),
         fallback="", name="Ammavan", cache_type="ammavan",
     )
     return res.text.strip() if res.outcome == "ok" and not res.from_cache and res.text.strip() else None

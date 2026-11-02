@@ -1,4 +1,4 @@
-"""Ammavan (proxy-curse / AI-chat bot): rare curse-back and witty remark; every other bot, and Navi's own loops, stay out."""
+"""Ammavan (proxy-curse / AI-chat bot): rare curse-back, frequent playful reply; every other bot, and Navi's own loops, stay out."""
 import pytest
 
 from navi.data import curse_data
@@ -81,14 +81,24 @@ async def test_witty_remark_on_ammavans_ai_answer(ctx):
     assert answer.reply.await_args.args[0] == "Quite the answer, that."
     prompt = ctx.llm.requests[0]["req"].prompt
     assert "Thiruvananthapuram" in prompt and "ammava what" not in prompt          # sees Ammavan's answer, not the person's question
-    assert "community" in prompt and "never any person" in prompt
+    assert "community" in prompt and "never any person" in prompt and "Kerala" in prompt
 
 
-async def test_witty_chance_is_three_percent(ctx):
+async def test_reply_chance_is_thirty_percent(ctx):
     am.track_human(ctx, msg(ASHA, "ammava hi", mid=50), now=100)
     answer = msg(AMMAVAN, "Hello there!", ref_id=50)
-    assert ctx.settings.get("chance.ammavan_witty_reply") == 0.03
-    assert await am.handle_ammavan(ctx, answer, rand=lambda: 0.04, now=101) is False and ctx.llm.requests == []
+    assert ctx.settings.get("chance.ammavan_witty_reply") == 0.30
+    assert await am.handle_ammavan(ctx, answer, rand=lambda: 0.31, now=101) is False and ctx.llm.requests == []
+    assert await am.handle_ammavan(ctx, answer, rand=lambda: 0.29, now=102) is True
+
+
+async def test_reply_sees_what_ammavan_said_and_what_was_asked_even_in_manglish(ctx):
+    am.track_human(ctx, msg(ASHA, "ammava ponmudi evide aanu <@7>?", mid=50), now=100)
+    answer = msg(AMMAVAN, "Ponmudi Thiruvananthapuram-il aanu, ente mone.", ref_id=50)
+    assert await am.handle_ammavan(ctx, answer, rand=HIT, now=101) is True
+    prompt = ctx.llm.requests[0]["req"].prompt
+    assert 'Someone asked Ammavan: "ponmudi evide aanu ?"' in prompt and "Ponmudi Thiruvananthapuram-il aanu" in prompt
+    assert "Manglish" in prompt and "reply in English only" in prompt
 
 
 async def test_ai_answer_must_follow_an_ammava_text_and_reply_to_it(ctx):
