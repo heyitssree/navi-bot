@@ -17,7 +17,7 @@ from navi.data.messages import FALLBACK_MESSAGES
 from navi.db.connection import _db_write
 from navi.llm.base import LLMRequest
 from navi.llm.prompts import LINK_USERNAME, get_qa_prompt, get_time_aware_system_prompt
-from navi.llm.prompts.qa import get_context_prompt
+from navi.llm.prompts.qa import get_chat_context_block, get_context_prompt
 from navi.services.predictions import templatize
 
 KNOWLEDGE_THRESHOLD = 90
@@ -107,10 +107,11 @@ def store_answer(db, question: str, answer: str, name: str) -> None:
     _db_write(_write)
 
 
-async def answer_question(ctx, message, question: str, *, history: list[tuple[str, str]] | None = None, purpose: str = "qa") -> Answer:
-    """Answer one question for message.author. history (the reply chain) disables the knowledge and cache shortcuts."""
+async def answer_question(ctx, message, question: str, *, history: list[tuple[str, str]] | None = None, chat: list[tuple[str, str]] | None = None,
+                          purpose: str = "qa") -> Answer:
+    """Answer one question for message.author. history (the reply chain) or chat (recent channel messages) disables the knowledge and cache shortcuts."""
     name = message.author.display_name
-    if not history:
+    if not history and not chat:
         hit = knowledge_answer(ctx.db, question)
         if hit:
             return Answer(hit, "knowledge", True, "knowledge")
@@ -120,13 +121,15 @@ async def answer_question(ctx, message, question: str, *, history: list[tuple[st
     is_link = name == LINK_USERNAME
     system = get_time_aware_system_prompt(ctx.db, username=name)
     prompt = get_context_prompt(name, history, question, is_link) if history else get_qa_prompt(name, question, is_link=is_link)
+    if chat:
+        prompt = f"{get_chat_context_block(chat)}\n\n{prompt}"
     res = await ctx.llm.generate(
         LLMRequest(purpose=purpose, system=system, prompt=prompt),
         fallback=random.choice(FALLBACK_MESSAGES), name=name, user_id=message.author.id, cache_type="qa",
     )
     if res.outcome in LIMIT_OUTCOMES:
         return Answer(res.text, "limit", True, res.outcome)
-    if res.outcome == "ok" and not history:
+    if res.outcome == "ok" and not history and not chat:     # context-dependent answers are never cached
         store_answer(ctx.db, question, res.text, name)
     return Answer(res.text, "llm" if not res.from_cache else "fallback", res.from_cache, res.outcome)
 

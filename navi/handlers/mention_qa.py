@@ -8,7 +8,7 @@ import random
 import discord
 
 from navi.data.curse_data import contains_curse_word
-from navi.services import chat_throttle
+from navi.services import chat_context, chat_throttle
 from navi.services.mentions import only_user
 from navi.services.qa import answer_question, limit_notice_due
 
@@ -36,7 +36,7 @@ async def handle_mention_qa(ctx, message: discord.Message) -> bool:
 
             async def _do_qa_call():
                 await asyncio.sleep(random.uniform(1.0, 2.0))
-                return await answer_question(ctx, message, content_without_ping)
+                return await answer_question(ctx, message, content_without_ping, chat=await chat_context.build(ctx, message))
 
             if ctx.config.free_tier_mode:
                 async with message.channel.typing():

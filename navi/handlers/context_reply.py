@@ -16,6 +16,7 @@ import discord
 from navi.data.curse_data import contains_curse_word
 from navi.llm import safety
 from navi.services.mentions import only_user
+from navi.services import chat_context
 from navi.services.qa import answer_question, limit_notice_due
 
 logger = logging.getLogger("navi.handlers.context_reply")
@@ -93,7 +94,7 @@ async def handle_context_reply(ctx, message: discord.Message) -> bool:
 
     async def work():
         await asyncio.sleep(random.uniform(1.0, 2.0))
-        return await answer_question(ctx, message, question, history=history, purpose="context_reply")
+        return await answer_question(ctx, message, question, history=history, chat=await chat_context.build(ctx, message), purpose="context_reply")
 
     async with message.channel.typing():
         answer = await work()

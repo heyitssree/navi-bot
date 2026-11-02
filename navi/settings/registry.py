@@ -79,6 +79,7 @@ SETTINGS: tuple[Setting, ...] = (
     _limit("ai.max_output_tokens", "Max output tokens", 200, 16, 4096, "Short replies; summaries and audits get 4x."),
     _limit("ai.qa_cooldown_seconds", "Q&A cooldown (s)", 30, 0, 3600, "Per user, mention Q&A and context replies."),
     _limit("ai.qa_daily_cap", "Q&A per user per day", 25, 1, 1000, "Per user."),
+    _limit("ai.channel_context_messages", "Channel messages used as context", 10, 0, 25, "Last N messages before a question (opted-out people and other bots excluded). 0 = off."),
     _limit("ai.qa_cache_ttl_days", "Q&A cache TTL (days)", 7, 1, 90, "How long cached answers are reused."),
     # ---- Safety
     Setting("safety.allow_malayalam_script", "bool", False, "Safety", "Allow Malayalam script",

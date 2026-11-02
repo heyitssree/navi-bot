@@ -28,7 +28,7 @@ channel.bot_commands channel.mod_alerts emoji.link_summary
 privacy.optin_cooldown_days privacy.block_optout_with_strikes privacy.audit_includes_optouts
 state.lucky_draw_last_date
 feature.chat_redirect chat.redirect_calls chat.redirect_window_seconds chat.redirect_cooldown_seconds
-feature.ammavan_reactions ammavan.bot_ids chance.ammavan_curse_back chance.ammavan_witty_reply limit.ammavan_cooldown_seconds
+ai.channel_context_messages feature.ammavan_reactions ammavan.bot_ids chance.ammavan_curse_back chance.ammavan_witty_reply limit.ammavan_cooldown_seconds
 """.split()          # last row: added after the spec (owner request, Phase 8): AI chat redirect to bot-commands
 
 SAMPLE = {"bool": "off", "int": None, "float": None, "str": "hello", "channel": "<#123>", "role": "<@&456>", "id_list": "1 2 3"}

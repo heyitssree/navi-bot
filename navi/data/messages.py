@@ -26,13 +26,13 @@ WELCOME_MESSAGES: list[str] = [
 
 # Moda introduction — always appended to the welcome message for verified members
 MODA_INTROS: list[str] = [
-    "If you have questions, ask Moda — assuming he's not currently distracted by a fresh batch of Kuzhalappam.",
-    "Moda is the moderator here. You can usually bribe him with a packet of crispy Kuzhalappam if you break a minor rule.",
-    "Got questions? Moda's the boss. He's probably out hunting for Kuzhalappam right now, but leave a message.",
-    "Moda moderates this server. He takes the role very seriously, but he takes his daily Kuzhalappam intake even more seriously.",
-    "Our moderator Moda will help you. Unless he's on a Kuzhalappam run, in which case you are entirely on your own.",
-    "Ask Moda if you get lost. Just don't touch his Kuzhalappam stash, or you'll get banned.",
-    "Moda runs this server. He's powered entirely by caffeine and an unhealthy amount of Kuzhalappam.",
+    "Got questions? Ask Moda, the moderator. He's friendlier than he looks and louder than he needs to be.",
+    "Moda is the moderator here. Break a minor rule and he'll just sigh dramatically. Break a big one and he'll sigh in capitals.",
+    "Lost? Moda's your guy. He's usually around, usually caffeinated, and usually right.",
+    "Moda moderates this server. He takes the job seriously, himself less so.",
+    "Our moderator Moda will sort you out. Be nice and he's a legend; be annoying and he's a legend with a ban button.",
+    "Ask Moda if you get stuck. He knows where everything is, and where everyone hides.",
+    "Moda runs this place. Treat him well and the server runs smoothly. Mostly.",
 ]
 
 

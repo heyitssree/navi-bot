@@ -26,7 +26,7 @@ class HelpCog(commands.Cog):
         ctx = self.ctx
         embed = discord.Embed(
             title="Navi — Help & Features",
-            description="Fairy from Hyrule. Now stationed in Thirontharam. Speaks Manglish. Has seen things.",
+            description="Your local Trivandrum know-it-all. Stationed in Thirontharam. Has opinions. Has seen things.",
             color=discord.Color.dark_purple(),
         )
 
