@@ -337,7 +337,7 @@ def get_glossary_text(db_conn) -> str:
     """
     time_tag = _current_time_tag()
     parts: list[str] = []
-    for category, limit in [("expression", 4), ("landmark", 4), ("food", 3), ("culture", 3)]:
+    for category, limit in [("expression", 4), ("landmark", 1), ("food", 3), ("culture", 1)]:
         items = get_contextual_sample(db_conn, category, limit, time_tag)
         if not items:
             continue

@@ -114,6 +114,8 @@ class SafetyFilter:
             reasons.append("blocklist")
         if "@everyone" in text or "@here" in text or MENTION.search(text):
             reasons.append("mention")
+        if "```" in text:
+            reasons.append("code")                       # backstop: Navi never posts code blocks
         if BOT_TRIGGER.match(text):
             reasons.append("bot_trigger")                # a leading "." or "ammava" would trigger the Ammavan bot
         if len(text) > MAX_LEN.get(purpose, DEFAULT_MAX_LEN):

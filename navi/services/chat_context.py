@@ -11,6 +11,7 @@ import re
 import discord
 
 from navi.llm import safety
+from navi.services.emojis import to_short
 
 logger = logging.getLogger("navi.services.chat_context")
 
@@ -31,7 +32,7 @@ async def build(ctx, message: discord.Message) -> list[tuple[str, str]]:
             is_navi = m.author.id == ctx.bot.user.id
             if (m.author.bot and not is_navi) or ctx.privacy.is_opted_out(m.author.id):
                 continue
-            text = _MENTION.sub("", m.content or "").strip()[:LINE_CHARS]
+            text = to_short(_MENTION.sub("", m.content or "")).strip()[:LINE_CHARS]
             name = "Navi" if is_navi else m.author.display_name
             if not text or not safety.check_input(text).ok:
                 continue

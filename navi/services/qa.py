@@ -11,13 +11,15 @@ from __future__ import annotations
 import random
 import re
 import time
+import dataclasses
 from dataclasses import dataclass
 
-from navi.data.messages import FALLBACK_MESSAGES
+from navi.data.messages import FALLBACK_MESSAGES, OFF_SCOPE_REPLIES
 from navi.db.connection import _db_write
 from navi.llm.base import LLMRequest
 from navi.llm.prompts import LINK_USERNAME, get_qa_prompt, get_time_aware_system_prompt
 from navi.llm.prompts.qa import get_chat_context_block, get_context_prompt
+from navi.services import emojis
 from navi.services.predictions import templatize
 
 KNOWLEDGE_THRESHOLD = 90
@@ -29,6 +31,18 @@ _SUBJECT_PATTERNS = (
     re.compile(r"^(?:meaning\s+of|define|explain)\s+(?P<s>.+)$", re.I),
 )
 LIMIT_OUTCOMES = {"user_cooldown", "user_daily_cap"}
+
+
+_LANGS = r"(?:python|java(?:script)?|c\+\+|c#|sql|html|css|bash|rust|golang|php|typescript|kotlin|swift)"
+_OFF_SCOPE = re.compile(
+    rf"\b(?:write|type|code|make|create|give|generate|implement|debug|fix|build|show|solve|complete)\b.{{0,40}}?"
+    rf"\b(?:{_LANGS}|code|program|script|function|algorithm|regex|essay|assignment|homework|cover letter|email|report)\b"
+    rf"|\b{_LANGS}\b.{{0,15}}\b(?:code|program|script|function)\b|```", re.I | re.S)
+
+
+def is_off_scope(question: str) -> bool:
+    """Obvious code/homework requests are refused for free, before any LLM call."""
+    return bool(_OFF_SCOPE.search(question))
 
 
 @dataclass
@@ -107,10 +121,12 @@ def store_answer(db, question: str, answer: str, name: str) -> None:
     _db_write(_write)
 
 
-async def answer_question(ctx, message, question: str, *, history: list[tuple[str, str]] | None = None, chat: list[tuple[str, str]] | None = None,
+async def _answer_question(ctx, message, question: str, *, history: list[tuple[str, str]] | None = None, chat: list[tuple[str, str]] | None = None,
                           purpose: str = "qa") -> Answer:
     """Answer one question for message.author. history (the reply chain) or chat (recent channel messages) disables the knowledge and cache shortcuts."""
     name = message.author.display_name
+    if is_off_scope(question):
+        return Answer(random.choice(OFF_SCOPE_REPLIES).replace("{user}", name), "scope", True, "scope")
     if not history and not chat:
         hit = knowledge_answer(ctx.db, question)
         if hit:
@@ -123,6 +139,9 @@ async def answer_question(ctx, message, question: str, *, history: list[tuple[st
     prompt = get_context_prompt(name, history, question, is_link) if history else get_qa_prompt(name, question, is_link=is_link)
     if chat:
         prompt = f"{get_chat_context_block(chat)}\n\n{prompt}"
+    await emojis.load(ctx.bot)
+    if emoji_block := emojis.prompt_block(message, chat):
+        prompt = f"{prompt}\n\n{emoji_block}"
     res = await ctx.llm.generate(
         LLMRequest(purpose=purpose, system=system, prompt=prompt),
         fallback=random.choice(FALLBACK_MESSAGES), name=name, user_id=message.author.id, cache_type="qa",
@@ -132,6 +151,12 @@ async def answer_question(ctx, message, question: str, *, history: list[tuple[st
     if res.outcome == "ok" and not history and not chat:     # context-dependent answers are never cached
         store_answer(ctx.db, question, res.text, name)
     return Answer(res.text, "llm" if not res.from_cache else "fallback", res.from_cache, res.outcome)
+
+
+async def answer_question(ctx, message, question: str, **kwargs) -> Answer:
+    """_answer_question, with :name: turned into the server's real custom emoji."""
+    ans = await _answer_question(ctx, message, question, **kwargs)
+    return dataclasses.replace(ans, text=emojis.render(message, ans.text))
 
 
 def limit_notice_due(ctx, user_id: int, window: float | None = None) -> bool:

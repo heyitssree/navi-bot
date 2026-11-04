@@ -115,3 +115,12 @@ QA_DAILY_CAP_MESSAGES: list[str] = [
     "{user}, you've used up today's questions. The stars reopen after midnight IST.",
     "That's the daily limit of Navi answers for you, {user}. Come back tomorrow, mone.",
 ]
+
+
+# Canned in-character refusals for requests outside Navi's scope (code, essays...): no LLM call, so no cost
+OFF_SCOPE_REPLIES: list[str] = [
+    "Hey! Listen! I'm a fairy from Hyrule, not a compiler. Code is above my pay grade, but ask me about Kerala food and I'll talk all day. 🧚",
+    "Homework and code? The Master Sword can't run Python either, {user}! Ask me something fun instead. 😄",
+    "Navi does banter, chaya and Kerala gossip, not programming or essays. Try me with a food or movie question! ☕",
+    "Sorry {user}, my fairy dust doesn't compile. I'm here for fun chat, not assignments. Ask me anything Kerala! 🌴",
+]

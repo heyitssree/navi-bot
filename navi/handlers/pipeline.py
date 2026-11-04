@@ -5,9 +5,10 @@ Each handler is `async def handler(ctx, message) -> bool` and returns True when 
 
   guards (inline)  db not ready / master killswitch -> ignore
                    opted-out author (privacy) -> drop: no points, logging, replies or counters
-                   bots -> ignored, except Ammavan (services/ammavan.py: rare curse-back / witty remark); replies to Navi -> ignore, except in the bot-commands channel when context replies are on
+                   bots -> ignored, except Ammavan (services/ammavan.py: rare curse-back / witty remark); replies to Navi -> ignore unless they tag Navi (<@id> in the text)
    1. track_user     last_seen + first-message-per-session upsert                  never consumes
       track_ammavan  remembers "." / "ammava..." texts per channel (Ammavan bot)    never consumes
+      track_emojis   copies foreign custom emojis into Navi's emoji inventory (FIFO) never consumes
    2. shortcuts      ";;name" local media shortcut                                 consumes when it matched
    3. vibe           channel heat tracker                                          never consumes
    4. slang_points   Boli for slang triggers + slang dictionary (spam gated)       never consumes
@@ -27,7 +28,8 @@ from datetime import datetime, timezone
 import discord
 
 from navi.db.repos.users import upsert_user
-from navi.handlers.context_reply import handle_context_reply, in_context_channel
+from navi.services import emojis
+from navi.handlers.context_reply import handle_context_reply
 from navi.handlers.curse_commands import handle_chunk_command, handle_navi_command
 from navi.handlers.kochi import handle_kochi
 from navi.handlers.mention_qa import handle_mention_qa
@@ -57,9 +59,16 @@ async def track_ammavan(ctx, message: discord.Message) -> bool:
     return False
 
 
+async def track_emojis(ctx, message: discord.Message) -> bool:
+    """Learn custom emojis seen in chat into Navi's emoji inventory (never consumes)."""
+    await emojis.learn(ctx.bot, message)
+    return False
+
+
 HANDLERS = [
     track_user,
     track_ammavan,
+    track_emojis,
     handle_shortcut,
     handle_vibe,
     handle_slang_points,
@@ -93,11 +102,13 @@ async def on_message(ctx, message: discord.Message) -> None:
             logger.exception("Ammavan reaction failed")
         return
 
-    # Ignore replies to bot's own messages
+    # A reply to one of Navi's messages is ignored unless it explicitly tags Navi. (A reply's automatic ping does not count:
+    # only a literal <@id> in the text does.)
     if message.reference:
         resolved = message.reference.resolved or message.reference.cached_message
-        if isinstance(resolved, discord.Message) and resolved.author.id == ctx.bot.user.id and not in_context_channel(ctx, message):
-            return
+        if isinstance(resolved, discord.Message) and resolved.author.id == ctx.bot.user.id:
+            if f"<@{ctx.bot.user.id}>" not in message.content and f"<@!{ctx.bot.user.id}>" not in message.content:
+                return
 
     for handler in HANDLERS:
         try:

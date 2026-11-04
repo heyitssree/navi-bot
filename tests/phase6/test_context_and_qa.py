@@ -50,12 +50,12 @@ async def test_three_turn_conversation_keeps_context(env):
     q1 = chat(ASHA, f"<@{BOT_ID}> where is Kowdiar?")
     assert await pipeline.on_message(ctx, q1) is None
     r1 = chat(NAVI, "Kowdiar is near the palace.", to=q1)
-    q2 = chat(ASHA, "and what is nearby?", to=r1)
+    q2 = chat(ASHA, f"<@{BOT_ID}> and what is nearby?", to=r1)
     await pipeline.on_message(ctx, q2)
     prompt2 = ctx.llm.requests[-1]["req"].prompt
     assert "Navi: Kowdiar is near the palace." in prompt2 and "User: " in prompt2 and ctx.llm.requests[-1]["req"].purpose == "context_reply"
     r2 = chat(NAVI, "Museums and a zoo.", to=q2)
-    q3 = chat(ASHA, "which is cheaper?", to=r2)
+    q3 = chat(ASHA, f"<@{BOT_ID}> which is cheaper?", to=r2)
     await pipeline.on_message(ctx, q3)
     prompt3 = ctx.llm.requests[-1]["req"].prompt
     for needle in ("Kowdiar is near the palace.", "and what is nearby?", "Museums and a zoo."):
@@ -254,3 +254,66 @@ def test_limit_notice_due_is_once_per_window(db):
     ctx.settings.set("ai.qa_cooldown_seconds", 120)
     assert qa.limit_notice_due(ctx, 1) is True and qa.limit_notice_due(ctx, 1) is False and qa.limit_notice_due(ctx, 2) is True
     assert qa.limit_notice_due(ctx, 1, window=-1) is True
+
+
+async def test_untagged_reply_to_navi_is_ignored_even_in_the_bot_channel(env):
+    ctx = env
+    r1 = chat(NAVI, "Kowdiar is near the palace.")
+    untagged = chat(ASHA, "and what is nearby?", to=r1)
+    untagged.mentions = [ctx.bot.user]                   # Discord's automatic reply ping is not a tag
+    await pipeline.on_message(ctx, untagged)
+    assert untagged.reply.await_count == 0 and ctx.llm.requests == []
+
+
+async def test_custom_emojis_are_offered_and_rendered(env):
+    from navi.services import emojis
+    guild = SimpleNamespace(emojis=[SimpleNamespace(name="kekw", id=11, animated=False, available=True),
+                                    SimpleNamespace(name="party", id=22, animated=True, available=True),
+                                    SimpleNamespace(name="gone", id=33, animated=False, available=False)])
+    msg = SimpleNamespace(guild=guild)
+    block = emojis.prompt_block(msg, [("Asha", "lol :party: :nope:")])
+    assert block.index(":party:") < block.index(":kekw:") and ":gone:" not in block
+    assert emojis.render(msg, "ha :kekw: :party: :nope: 12:30:45") == "ha <:kekw:11> <a:party:22> :nope: 12:30:45"
+    assert emojis.to_short("x <:kekw:11> <a:party:22>") == "x :kekw: :party:"
+    assert emojis.prompt_block(SimpleNamespace(guild=None), None) == "" and emojis.render(SimpleNamespace(guild=None), ":a:") == ":a:"
+
+
+async def test_code_and_homework_requests_are_refused_without_an_llm_call(env):
+    ctx = env
+    for q in ("type a python code for armstrong number", "write me an essay on Kerala", "fix my java program"):
+        m = chat(ASHA, f"<@{BOT_ID}> {q}")
+        await pipeline.on_message(ctx, m)
+        assert m.reply.await_count == 1
+    assert ctx.llm.requests == []
+    assert not qa.is_off_scope("how do I make puttu") and not qa.is_off_scope("do you know sql")
+
+
+def test_code_blocks_are_rejected_by_the_safety_filter():
+    from navi.llm import safety
+    assert "code" in safety.check_output("```python\nprint(1)\n```").reasons
+
+
+async def test_foreign_emojis_are_learned_fifo(env, monkeypatch):
+    from navi.services import emojis
+    ctx = env
+    made, deleted = [], []
+
+    class Inv:
+        def __init__(self, id, name): self.id, self.name, self.animated = id, name, False
+        async def delete(self): deleted.append(self.name)
+
+    async def create(name, image):
+        made.append(name)
+        return Inv(100 + len(made), name)
+
+    ctx.bot.fetch_application_emojis = AsyncMock(return_value=[Inv(2, "b"), Inv(1, "a")])
+    ctx.bot.create_application_emoji = create
+    monkeypatch.setattr(emojis, "_inv", None)
+    monkeypatch.setattr(emojis, "MAX_INVENTORY", 2)
+    monkeypatch.setattr(emojis, "_download", AsyncMock(return_value=b"img"))
+    m = chat(ASHA, "lol <:kekw:999> <:own:5> <:b:77>")
+    m.guild = SimpleNamespace(emojis=[SimpleNamespace(name="own", id=5, animated=False, available=True)])
+    await emojis.learn(ctx.bot, m)
+    assert made == ["kekw"] and deleted == ["a"]                      # oldest ("a") made room; own and same-name emojis skipped
+    assert [e.name for e in emojis._inv] == ["b", "kekw"]
+    assert emojis.render(m, ":kekw: :own:") == "<:kekw:101> <:own:5>"

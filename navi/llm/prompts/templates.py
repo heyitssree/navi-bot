@@ -17,8 +17,7 @@ Return ONLY a JSON array of strings, nothing else."""
 
 _PREDICTION = """Generate {n} short daily predictions Navi can reuse for any member.
 Rules: English only. One or two sentences, at most 25 words. Each must contain the
-literal placeholder {{user}}. Light, funny, harmless Trivandrum flavour (traffic at
-Kowdiar, a thattukada run, chaya going cold, phone stuck at 2%). No insults, no body,
+literal placeholder {{user}}. Light, funny, harmless Kerala flavour (a thattukada run, chaya going cold, phone stuck at 2%). No insults, no body,
 family, caste or religion references, no Malayalam words except mone and chaya.
 Return ONLY a JSON array of strings, nothing else."""
 
