@@ -18,7 +18,7 @@ from navi.data.curse_data import contains_curse_word, get_random_doomed_predicti
 from navi.llm import safety
 from navi.llm.base import LLMRequest
 from navi.llm.prompts import get_ammavan_witty_prompt, get_time_aware_system_prompt
-from navi.services.mentions import nobody
+from navi.services.mentions import nobody, only_user
 from navi.services.template_pool import pick
 
 logger = logging.getLogger("navi.services.ammavan")
@@ -28,6 +28,7 @@ AI_WINDOW = 30.0             # seconds between a person's "ammava ..." text and 
 AI_PREFIX = "ammava"
 SAFE_PREFIX = "✨ "
 _MENTION = re.compile(r"<@[!&]?\d+>|<#\d+>|@everyone|@here")
+_BROAD_PING = re.compile(r"@everyone|@here|<@&\d+>")
 
 
 def ammavan_ids(ctx) -> set[int]:
@@ -92,6 +93,17 @@ async def handle_ammavan(ctx, message, *, rand=None, now: float | None = None) -
         return False
     now = time.monotonic() if now is None else now
     channel = message.channel.id
+    navi_mention = re.compile(rf"<@!?{ctx.bot.user.id}>")
+    if navi_mention.search(message.content or ""):                  # Ammavan cursed Navi: always curse the person who triggered it
+        kind, trigger = classify(ctx, message, now)
+        if kind == "curse" and not _opted_out_involved(ctx, message, trigger):
+            text = bot_safe(_BROAD_PING.sub("", navi_mention.sub(f"<@{trigger}>", message.content)))
+            ctx.state.ammavan_last[channel] = now
+            allowed = only_user(trigger)
+            allowed.replied_user = False
+            await message.reply(text, allowed_mentions=allowed)
+            logger.info("Ammavan cursed Navi: cursed the trigger back.")
+            return True
     if now - ctx.state.ammavan_last.get(channel, -1e12) < ctx.settings.get("limit.ammavan_cooldown_seconds"):
         return False
     kind, trigger = classify(ctx, message, now)

@@ -52,6 +52,14 @@ async def test_curse_back_when_ammavan_proxy_curses(ctx):
     assert ctx.llm.requests == []                                        # a reviewed template, never the LLM
 
 
+async def test_ammavan_cursing_navi_curses_the_trigger_back(ctx):
+    am.track_human(ctx, msg(ASHA, f". <@{BOT_ID}>", mid=1), now=100)
+    reply = msg(AMMAVAN, f"poda <@{BOT_ID}> @everyone", mid=2)
+    assert await am.handle_ammavan(ctx, reply, rand=MISS, now=101) is True       # no dice roll
+    sent = reply.reply.await_args
+    assert sent.args[0] == "poda <@5>" and [u.id for u in sent.kwargs["allowed_mentions"].users] == [5]
+
+
 async def test_curse_back_chance_is_five_percent(ctx):
     am.track_human(ctx, msg(ASHA, ". hello"), now=100)
     reply = msg(AMMAVAN, "poda hello")
